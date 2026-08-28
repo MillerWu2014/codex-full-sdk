@@ -1,0 +1,15 @@
+[project]
+name = "codex-sdk-v1"
+version = "1.0.0"
+description = "Python-only Codex SDK v1 workspace (no TypeScript)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+dependencies = ["openai-codex"]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+openai-codex = { path = "python" }
+openai-codex-cli-bin = { path = "python-runtime" }
