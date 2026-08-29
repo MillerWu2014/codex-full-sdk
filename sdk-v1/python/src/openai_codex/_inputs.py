@@ -27,6 +27,20 @@ class LocalImageInput:
 
 
 @dataclass(slots=True)
+class AudioInput:
+    """Audio data URL supplied as turn input."""
+
+    url: str
+
+
+@dataclass(slots=True)
+class LocalAudioInput:
+    """Local audio path supplied as turn input."""
+
+    path: str
+
+
+@dataclass(slots=True)
 class SkillInput:
     """Named skill reference supplied as turn input."""
 
@@ -42,7 +56,15 @@ class MentionInput:
     path: str
 
 
-InputItem = TextInput | ImageInput | LocalImageInput | SkillInput | MentionInput
+InputItem = (
+    TextInput
+    | ImageInput
+    | LocalImageInput
+    | AudioInput
+    | LocalAudioInput
+    | SkillInput
+    | MentionInput
+)
 Input = list[InputItem] | InputItem
 RunInput = Input | str
 
@@ -54,6 +76,10 @@ def _to_wire_item(item: InputItem) -> JsonObject:
         return {"type": "image", "url": item.url}
     if isinstance(item, LocalImageInput):
         return {"type": "localImage", "path": item.path}
+    if isinstance(item, AudioInput):
+        return {"type": "audio", "url": item.url}
+    if isinstance(item, LocalAudioInput):
+        return {"type": "localAudio", "path": item.path}
     if isinstance(item, SkillInput):
         return {"type": "skill", "name": item.name, "path": item.path}
     if isinstance(item, MentionInput):

@@ -7,6 +7,10 @@ class CodexError(Exception):
     """Base exception for SDK errors."""
 
 
+class ExperimentalApiDisabledError(CodexError):
+    """Raised when an experimental method or field is used without opt-in."""
+
+
 class JsonRpcError(CodexError):
     """Raw JSON-RPC error wrapper from the server."""
 

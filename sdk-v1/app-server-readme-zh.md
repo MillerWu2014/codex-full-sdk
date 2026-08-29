@@ -1,6 +1,6 @@
 # codex-app-server
 
-> 本文是 [README.md](./README.md) 的中文译本。协议字段名、方法名、错误码与 JSON 示例以英文原文为准。
+> 本文是 [README.md](../codex/codex-rs/app-server/README.md) 的中文译本。协议字段名、方法名、错误码与 JSON 示例以英文原文为准。
 
 `codex app-server` 是 Codex 用来驱动富交互界面的接口，例如 [Codex VS Code 扩展](https://marketplace.visualstudio.com/items?itemName=openai.chatgpt)。
 
@@ -2562,7 +2562,7 @@ descriptor 字符串示例：
 
 在运行时，客户端必须发送带有 `capabilities.experimentalApi = true` 的 `initialize` 才能使用实验性方法或字段。
 
-1. 在协议类型（通常是 `app-server-protocol/src/protocol/v2.rs`）中用以下方式注解该字段：
+1. 在协议类型（通常是 `app-server-protocol/src/protocol/common.rs`）中用以下方式注解该字段：
    ```rust
    #[experimental("thread/start.myField")]
    pub my_field: Option<String>,

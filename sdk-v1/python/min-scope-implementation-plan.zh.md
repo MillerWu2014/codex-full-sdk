@@ -55,7 +55,7 @@ AsyncCodex.thread_archive(thread_id)
 | --- | --- | --- |
 | `thread/start` 补 `environments` | `ThreadStartParams.environments`，`#[experimental("thread/start.environments")]` | P0 公开可选参数；依赖 experimental schema + 调用时若传入且 `experimental_api=False` 则报错 |
 | 不要补 `permissions` / `dynamicTools` | 同结构上的 experimental 字段 | 生成器 **exclude**，公开签名不出现 |
-| `thread/fork` 补 `lastTurnId` / `beforeTurnId` / `excludeTurns` | `last_turn_id` 稳定；`before_turn_id` experimental；**fork 没有 `excludeTurns`** | 公开 `last_turn_id`；公开 `before_turn_id`（experimental 门闩）。`exclude_turns` 在 **`thread/resume`**，不发明到 fork |
+| `thread/fork` 补 `lastTurnId` / `beforeTurnId` / `excludeTurns` | `last_turn_id`、`exclude_turns` 稳定；`before_turn_id` experimental | 公开 `last_turn_id` / `exclude_turns`；公开 `before_turn_id`（experimental 门闩） |
 | `turn/start` 补 `audio` / `localAudio` | `UserInput` 已有 `AudioUserInput` / `LocalAudioUserInput` | 扩展 `_inputs.py`，与 `SkillInput` 相同 |
 | `turn/start` 独立 `toolOutput` | `TurnStartParams.tool_output: Option<TurnToolOutput>`，不是 UserInput 变体 | `Thread.turn` / `run` 增加 `tool_output=` |
 | `turn/start` 补 `environments` | experimental 字段 | 同 start：公开可选 + 门闩；exclude `permissions` |
@@ -64,7 +64,9 @@ AsyncCodex.thread_archive(thread_id)
 
 ```python
 # scripts/update_sdk_artifacts.py::generate_public_api_flat_methods
-thread_fork_fields = _load_public_fields(..., exclude={"thread_id", "last_turn_id", *approval_fields})
+thread_fork_fields = _load_public_fields(
+    ..., exclude={"thread_id", "last_turn_id", *approval_fields}
+)
 # last_turn_id 被故意排除 → 需求的 fork 参数缺口
 ```
 
@@ -89,7 +91,7 @@ thread_fork_fields = _load_public_fields(..., exclude={"thread_id", "last_turn_i
 | `tests/test_client_rpc_methods.py` | Params dump by_alias |
 | `tests/test_public_api_signatures.py` | 导出列表 + keyword 名单 |
 | `tests/test_app_server_*.py` | 每 RPC 至少一条 harness 成功路径 |
-| `docs/app-server-api.zh.md` | Python SDK 列：范围内方法改为「公开」 |
+| `app-server-api.zh.md` | Python SDK 列：范围内方法改为「公开」 |
 
 不新增 `CodexClient` 子类、不新增 HTTP 传输、不新增通知总线 API。
 
@@ -170,9 +172,7 @@ from .errors import ExperimentalApiDisabledError
 
 def require_experimental_api(config: CodexConfig, feature: str) -> None:
     if not config.experimental_api:
-        raise ExperimentalApiDisabledError(
-            f"{feature} requires CodexConfig.experimental_api=True"
-        )
+        raise ExperimentalApiDisabledError(f"{feature} requires CodexConfig.experimental_api=True")
 ```
 
 `errors.py`：
@@ -195,11 +195,14 @@ class ExperimentalCodex:
     def __init__(self, codex: Codex) -> None:
         self._codex = codex
 
-    def project_list(self, *, cursor: str | None = None, limit: int | None = None) -> ProjectListResponse:
+    def project_list(
+        self, *, cursor: str | None = None, limit: int | None = None
+    ) -> ProjectListResponse:
         """RPC: project/list."""
         require_experimental_api(self._codex._client.config, "project/list")
         self._codex._ensure_initialized()
         return self._codex._client.project_list(ProjectListParams(cursor=cursor, limit=limit))
+
 
 # Codex
 @property
@@ -308,13 +311,13 @@ thread_resume_fields = _load_public_fields(
     ...,
     exclude={"thread_id", *approval_fields, *forbidden_start},
 )
-# exclude_turns 若出现在 ResumeParams 则保留（协议在 resume，不在 fork）
+# resume 与 fork 都保留 exclude_turns
 
 thread_fork_fields = _load_public_fields(
     ...,
     exclude={"thread_id", "path", *approval_fields, *forbidden_start},
 )
-# 不再 exclude last_turn_id；before_turn_id 保留
+# 不再 exclude last_turn_id；before_turn_id 与 exclude_turns 保留
 
 turn_forbidden = {
     "permissions",
@@ -423,17 +426,25 @@ Expected: PASS。
 @dataclass(slots=True)
 class AudioInput:
     """Audio URL supplied as turn input."""
+
     url: str
 
 
 @dataclass(slots=True)
 class LocalAudioInput:
     """Local audio path supplied as turn input."""
+
     path: str
 
 
 InputItem = (
-    TextInput | ImageInput | LocalImageInput | AudioInput | LocalAudioInput | SkillInput | MentionInput
+    TextInput
+    | ImageInput
+    | LocalImageInput
+    | AudioInput
+    | LocalAudioInput
+    | SkillInput
+    | MentionInput
 )
 
 
@@ -573,9 +584,11 @@ def goal_set(
     """RPC: thread/goal/set."""
     return self._client.thread_goal_set(self.id, objective=objective, status=status)
 
+
 def goal_clear(self) -> ThreadGoalClearResponse:
     """RPC: thread/goal/clear."""
     return self._client.thread_goal_clear(self.id)
+
 
 def goal_get(self) -> ThreadGoalGetResponse:
     """RPC: thread/goal/get."""
@@ -792,7 +805,7 @@ cd sdk-v1/python && uv run pytest tests/test_app_server_experimental.py tests/te
 ## Task 11: 文档与导出收尾
 
 **Files:**
-- Modify: `docs/app-server-api.zh.md`（Python SDK 列：范围内从「无 / 内部 / 部分」改为「公开」；P1 标明须 `experimental_api`）
+- Modify: `app-server-api.zh.md`（Python SDK 列：范围内从「无 / 内部 / 部分」改为「公开」；P1 标明须 `experimental_api`）
 - Modify: `sdk-v1/python/types.py`、`__init__.py`、`tests/test_public_api_signatures.py`
 - Modify: `sdk-v1/python/min-scope-requirements.zh.md` 不改需求语义；如公开方法名与建议落点不一致，在本 plan 或 README 记一笔即可
 

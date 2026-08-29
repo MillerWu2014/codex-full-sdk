@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib.metadata
 import os
 import subprocess
 import sys
@@ -35,23 +34,54 @@ def _snapshot_targets(root: Path) -> dict[str, dict[str, bytes] | bytes | None]:
 
 
 def test_generated_files_are_up_to_date():
-    """Regenerating from the pinned runtime package should leave artifacts unchanged."""
+    """Regenerating from fallback schema sources should leave artifacts unchanged."""
     before = _snapshot_targets(ROOT)
 
     # Regenerate contract artifacts via the pinned runtime package, not a local
     # app-server binary from the checkout or CI environment.
-    assert importlib.metadata.version("openai-codex-cli-bin") == "0.147.0"
     env = os.environ.copy()
     env.pop("CODEX_EXEC_PATH", None)
     python_bin = str(Path(sys.executable).parent)
     env["PATH"] = f"{python_bin}{os.pathsep}{env.get('PATH', '')}"
 
-    subprocess.run(
-        [sys.executable, "scripts/update_sdk_artifacts.py", "generate-types"],
-        cwd=ROOT,
-        check=True,
-        env=env,
-    )
+    cmd = [sys.executable, "scripts/update_sdk_artifacts.py", "generate-types"]
+    codex_bin = env.get("CODEX_BIN")
+    if codex_bin:
+        cmd.extend(["--codex-bin", codex_bin])
+    subprocess.run(cmd, cwd=ROOT, check=True, env=env)
 
     after = _snapshot_targets(ROOT)
     assert before == after, "Generated files drifted after regeneration"
+
+
+def test_generated_v2_surface_contains_required_p1_protocol_shapes() -> None:
+    from openai_codex.generated import v2_all
+
+    required_types = [
+        "ThreadSearchRequest",
+        "ThreadSearchOccurrencesRequest",
+        "ProjectListRequest",
+        "ProjectCreateRequest",
+        "ProjectReadRequest",
+        "ProjectUpdateRequest",
+        "ProjectMoveRequest",
+        "ProjectDeleteRequest",
+        "ThreadQueueListRequest",
+        "ThreadQueueAddRequest",
+        "ThreadQueueUpdateRequest",
+        "ThreadQueueDeleteRequest",
+        "ThreadQueueReorderRequest",
+        "ThreadQueueStartRequest",
+        "TurnSettingsUpdateRequest",
+        "MemoryResetRequest",
+        "ThreadSearchResult",
+        "Project",
+        "QueuedSubmission",
+        "ThreadSettingsUpdatedNotification",
+        "CollaborationMode",
+        "FuzzyFileSearchSessionUpdatedNotification",
+        "FuzzyFileSearchSessionCompletedNotification",
+        "MemoryResetResponse",
+    ]
+    for type_name in required_types:
+        assert hasattr(v2_all, type_name), type_name

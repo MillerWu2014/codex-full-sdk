@@ -1,0 +1,15 @@
+# Local toolchains and caches (do not commit)
+.tools/
+.ruff_cache/
+.pytest_cache/
+.venv/
+__pycache__/
+*.py[cod]
+.DS_Store
+*.egg-info/
+dist/
+build/
+.coverage
+htmlcov/
+.mypy_cache/
+.cursor/

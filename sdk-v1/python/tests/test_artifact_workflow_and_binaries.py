@@ -1,5 +1,6 @@
 import ast
 import importlib.util
+import inspect
 import io
 import json
 import os
@@ -8,6 +9,7 @@ import sys
 import tarfile
 import urllib.error
 from pathlib import Path
+from typing import get_type_hints
 
 import pytest
 import tomllib
@@ -18,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def _load_root_format_script_module():
     """Load the root formatter driver so tests exercise its real command graph."""
-    script_path = ROOT.parents[2] / "scripts" / "format.py"
+    script_path = ROOT.parents[1] / "codex" / "scripts" / "format.py"
     spec = importlib.util.spec_from_file_location("format_repo", script_path)
     if spec is None or spec.loader is None:
         raise AssertionError(f"Failed to load script module: {script_path}")
@@ -89,6 +91,12 @@ def _write_package_archive(package_dir: Path, archive_path: Path) -> None:
             archive.add(path, arcname=path.relative_to(package_dir))
 
 
+def _runtime_dependency_spec(dependencies: list[str]) -> str:
+    return next(
+        dependency for dependency in dependencies if dependency.startswith("openai-codex-cli-bin")
+    )
+
+
 def test_generation_has_single_maintenance_entrypoint_script() -> None:
     """Keep artifact workflows routed through one script instead of side entrypoints."""
     scripts = sorted(p.name for p in (ROOT / "scripts").glob("*.py"))
@@ -97,7 +105,7 @@ def test_generation_has_single_maintenance_entrypoint_script() -> None:
 
 def test_root_fmt_recipes_use_shared_formatter_driver() -> None:
     """The root formatting recipes should use the shared cross-platform driver."""
-    justfile = ROOT.parents[2] / "justfile"
+    justfile = ROOT.parents[1] / "codex" / "justfile"
     lines = justfile.read_text().splitlines()
     fmt_index = lines.index("fmt:")
     fmt_check_index = lines.index("fmt-check:")
@@ -357,10 +365,121 @@ def test_generate_types_wires_all_generation_steps() -> None:
     ]
 
 
+def test_precomputed_experimental_bundle_contains_full_v2_schema() -> None:
+    script = _load_update_script_module()
+    payload = script._load_precomputed_schema_payload(script.precomputed_schema_archive_path())
+    v2_bundle = json.loads(payload["json_schema"]["codex_app_server_protocol.v2.schemas.json"])
+    definitions = v2_bundle.get("definitions", {})
+    assert len(definitions) >= 700
+    for required in (
+        "ThreadStartParams",
+        "ThreadResumeParams",
+        "ThreadForkParams",
+        "TurnStartParams",
+        "ThreadListParams",
+        "ThreadSearchParams",
+        "ThreadSearchResponse",
+        "ProjectListParams",
+        "ProjectListResponse",
+        "ThreadQueueListParams",
+        "TurnSettingsUpdateParams",
+        "MemoryResetResponse",
+    ):
+        assert required in definitions
+
+
+def test_generate_schema_uses_precomputed_when_runtime_binary_missing(tmp_path: Path) -> None:
+    script = _load_update_script_module()
+
+    def missing_runtime_path() -> Path:
+        raise script.RuntimeBinaryUnavailableError("missing packaged runtime")
+
+    script.pinned_runtime_codex_path = missing_runtime_path  # type: ignore[attr-defined]
+    schema_dir = script.generate_schema_from_runtime_or_precomputed(tmp_path / "schema")
+    bundle = json.loads(script.schema_bundle_path(schema_dir).read_text())
+    assert len(bundle["definitions"]) == 734
+
+
+def test_generate_schema_prefers_packaged_runtime_before_precomputed(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    script = _load_update_script_module()
+    fake_runtime = tmp_path / script.runtime_binary_name()
+    fake_runtime.write_text("")
+    recorded: list[list[str]] = []
+
+    def fake_run(cmd: list[str], cwd: Path) -> None:
+        assert cwd == script.sdk_root()
+        recorded.append(cmd)
+        (tmp_path / "schema").mkdir(parents=True, exist_ok=True)
+        payload = script._load_precomputed_schema_payload(script.precomputed_schema_archive_path())
+        (tmp_path / "schema" / "codex_app_server_protocol.v2.schemas.json").write_text(
+            payload["json_schema"]["codex_app_server_protocol.v2.schemas.json"]
+        )
+        (tmp_path / "schema" / "ServerNotification.json").write_text(
+            payload["json_schema"]["ServerNotification.json"]
+        )
+
+    def precomputed_should_not_run(_schema_dir: Path) -> Path:
+        raise AssertionError("precomputed fallback should not run when packaged runtime succeeds")
+
+    monkeypatch.setattr(script, "pinned_runtime_codex_path", lambda: fake_runtime)
+    monkeypatch.setattr(script, "run", fake_run)
+    monkeypatch.setattr(script, "extract_precomputed_schema_dir", precomputed_should_not_run)
+    script.generate_schema_from_runtime_or_precomputed(tmp_path / "schema")
+    assert recorded and recorded[0][0] == str(fake_runtime)
+
+
+def test_generate_schema_does_not_swallow_runtime_mismatch_errors(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    script = _load_update_script_module()
+
+    def runtime_mismatch() -> Path:
+        raise RuntimeError("Expected openai-codex-cli-bin==1.0.0, but found 0.147.0.")
+
+    monkeypatch.setattr(script, "pinned_runtime_codex_path", runtime_mismatch)
+    monkeypatch.setattr(
+        script,
+        "extract_precomputed_schema_dir",
+        lambda _schema_dir: (_ for _ in ()).throw(AssertionError("must not fallback on mismatch")),
+    )
+    with pytest.raises(RuntimeError, match="Expected openai-codex-cli-bin==1.0.0"):
+        script.generate_schema_from_runtime_or_precomputed(tmp_path / "schema")
+
+
+def test_generate_schema_does_not_swallow_runtime_command_errors(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    script = _load_update_script_module()
+    fake_runtime = tmp_path / script.runtime_binary_name()
+    fake_runtime.write_text("")
+
+    def failing_run(_cmd: list[str], *, cwd: Path) -> None:
+        assert cwd == script.sdk_root()
+        raise subprocess.CalledProcessError(
+            returncode=2,
+            cmd=[str(fake_runtime), "app-server", "generate-json-schema", "--experimental"],
+        )
+
+    monkeypatch.setattr(script, "pinned_runtime_codex_path", lambda: fake_runtime)
+    monkeypatch.setattr(script, "run", failing_run)
+    monkeypatch.setattr(
+        script,
+        "extract_precomputed_schema_dir",
+        lambda _schema_dir: (_ for _ in ()).throw(
+            AssertionError("must not fallback on command failure")
+        ),
+    )
+    with pytest.raises(subprocess.CalledProcessError):
+        script.generate_schema_from_runtime_or_precomputed(tmp_path / "schema")
+
+
 def _load_runtime_schema_bundle(tmp_path: Path) -> dict:
     """Ask the pinned runtime package for a real schema bundle used by tests."""
     script = _load_update_script_module()
-    schema_dir = script.generate_schema_from_pinned_runtime(tmp_path / "schema")
+    schema_dir = script.generate_schema_from_runtime_or_precomputed(tmp_path / "schema")
     return json.loads(script.schema_bundle_path(schema_dir).read_text())
 
 
@@ -382,12 +501,14 @@ def test_schema_normalization_only_flattens_string_literal_oneofs(
         "AutoCompactTokenLimitScope",
         "CommandExecOutputStream",
         "ConsumeAccountRateLimitResetCreditOutcome",
+        "EnvironmentStatusKind",
         "ExperimentalFeatureStage",
         "InputModality",
         "MessagePhase",
         "PluginAvailability",
         "ProcessOutputStream",
         "TurnItemsView",
+        "TurnSettingsUpdateStatus",
     ]
 
 
@@ -504,22 +625,15 @@ def test_runtime_distribution_name_is_consistent() -> None:
     )
 
 
-def test_source_sdk_template_pins_published_runtime() -> None:
-    """The source template should carry a development version and reviewed runtime pin."""
-    script = _load_update_script_module()
+def test_source_sdk_template_uses_path_runtime_dependency() -> None:
+    """The source template should keep local development wired to python-runtime."""
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    dependencies = pyproject["project"]["dependencies"]
 
-    assert {
-        "sdk_template_version": pyproject["project"]["version"],
-        "runtime_pin": script.pinned_runtime_version(),
-        "dependencies": pyproject["project"]["dependencies"],
-    } == {
-        "sdk_template_version": "0.0.0-dev",
-        "runtime_pin": "0.147.0",
-        "dependencies": [
-            "pydantic>=2.12",
-            "openai-codex-cli-bin==0.147.0",
-        ],
+    assert pyproject["project"]["version"] == "1.0.0"
+    assert _runtime_dependency_spec(dependencies) == "openai-codex-cli-bin"
+    assert pyproject["tool"]["uv"]["sources"]["openai-codex-cli-bin"] == {
+        "path": "../python-runtime"
     }
 
 
@@ -537,10 +651,10 @@ def test_source_sdk_package_declares_stable_documentation() -> None:
         "readme_is_stable": "# OpenAI Codex Python SDK\n" in readme,
         "local_license_file": (ROOT / "LICENSE").exists(),
     } == {
-        "description": "Python SDK for Codex",
+        "description": "Python SDK for Codex v1",
         "is_stable": True,
         "license": "Apache-2.0",
-        "documentation": "https://github.com/openai/codex/tree/main/sdk/python/docs",
+        "documentation": "https://github.com/openai/codex/tree/main/sdk-v1/python/docs",
         "readme_is_stable": True,
         "local_license_file": False,
     }
@@ -576,6 +690,9 @@ def test_runtime_setup_reads_independent_runtime_pin_and_release_tags() -> None:
     """Runtime package pins remain independent of the SDK template version."""
     runtime_setup = _load_runtime_setup_module()
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    runtime_template = tomllib.loads(
+        (ROOT.parent / "python-runtime" / "pyproject.toml").read_text()
+    )
 
     assert {
         "package_name": runtime_setup.PACKAGE_NAME,
@@ -591,8 +708,8 @@ def test_runtime_setup_reads_independent_runtime_pin_and_release_tags() -> None:
         "alpha_hotfix_release_tag": runtime_setup._release_tag("0.116.0a1.post2"),
     } == {
         "package_name": "openai-codex-cli-bin",
-        "sdk_template_version": "0.0.0-dev",
-        "runtime_pin": "0.147.0",
+        "sdk_template_version": "1.0.0",
+        "runtime_pin": runtime_template["project"]["version"],
         "normalized_release_version": "0.116.0a1",
         "normalized_alpha_hotfix_version": "0.116.0a1.post2",
         "release_tag": "rust-v0.116.0-alpha.1",
@@ -839,30 +956,27 @@ def test_runtime_package_layout_is_included_by_wheel_config(
 
 def test_stage_sdk_release_preserves_reviewed_runtime_pin(tmp_path: Path) -> None:
     script = _load_update_script_module()
+    sdk_version = "1.2.3"
     staged = script.stage_python_sdk_package(
         tmp_path / "sdk-stage",
-        "0.147.0",
+        sdk_version,
     )
 
     pyproject = tomllib.loads((staged / "pyproject.toml").read_text())
     assert {
         "name": pyproject["project"]["name"],
         "version": pyproject["project"]["version"],
-        "dependencies": pyproject["project"]["dependencies"],
+        "runtime_dependency": _runtime_dependency_spec(pyproject["project"]["dependencies"]),
     } == {
         "name": "openai-codex",
-        "version": "0.147.0",
-        "dependencies": [
-            "pydantic>=2.12",
-            "openai-codex-cli-bin==0.147.0",
-        ],
+        "version": sdk_version,
+        "runtime_dependency": f"openai-codex-cli-bin=={sdk_version}",
     }
     assert (
-        '__version__ = "0.147.0"'
-        not in (staged / "src" / "openai_codex" / "__init__.py").read_text()
+        '__version__ = "1.2.3"' not in (staged / "src" / "openai_codex" / "__init__.py").read_text()
     )
     assert (
-        'client_version: str = "0.147.0"'
+        'client_version: str = "1.2.3"'
         not in (staged / "src" / "openai_codex" / "client.py").read_text()
     )
     assert not any((staged / "src" / "openai_codex").glob("bin/**"))
@@ -875,7 +989,7 @@ def test_stage_sdk_release_replaces_existing_staging_dir(tmp_path: Path) -> None
     old_file.parent.mkdir(parents=True)
     old_file.write_text("stale")
 
-    staged = script.stage_python_sdk_package(staging_dir, "0.147.0")
+    staged = script.stage_python_sdk_package(staging_dir, "1.2.3")
 
     assert staged == staging_dir
     assert not old_file.exists()
@@ -884,14 +998,15 @@ def test_stage_sdk_release_replaces_existing_staging_dir(tmp_path: Path) -> None
 def test_sdk_release_matches_stable_runtime(tmp_path: Path) -> None:
     script = _load_update_script_module()
     package_archive = _write_fake_codex_package_archive(tmp_path, script)
+    release_version = "1.2.3"
 
     sdk_stage = script.stage_python_sdk_package(
         tmp_path / "sdk-stage",
-        "0.147.0",
+        release_version,
     )
     runtime_stage = script.stage_python_runtime_package(
         tmp_path / "runtime-stage",
-        "0.147.0",
+        release_version,
         package_archive,
     )
 
@@ -901,31 +1016,29 @@ def test_sdk_release_matches_stable_runtime(tmp_path: Path) -> None:
     assert {
         "sdk_version": sdk_pyproject["project"]["version"],
         "runtime_version": runtime_pyproject["project"]["version"],
-        "sdk_dependencies": sdk_pyproject["project"]["dependencies"],
+        "runtime_dependency": _runtime_dependency_spec(sdk_pyproject["project"]["dependencies"]),
     } == {
-        "sdk_version": "0.147.0",
-        "runtime_version": "0.147.0",
-        "sdk_dependencies": [
-            "pydantic>=2.12",
-            "openai-codex-cli-bin==0.147.0",
-        ],
+        "sdk_version": release_version,
+        "runtime_version": release_version,
+        "runtime_dependency": f"openai-codex-cli-bin=={release_version}",
     }
 
 
 def test_stage_sdk_runs_type_generation_before_staging(tmp_path: Path) -> None:
     script = _load_update_script_module()
     calls: list[str] = []
+    sdk_version = "1.2.3"
     args = script.parse_args(
         [
             "stage-sdk",
             str(tmp_path / "sdk-stage"),
             "--sdk-version",
-            "0.147.0",
+            sdk_version,
         ]
     )
 
-    def fake_generate_types() -> None:
-        calls.append("generate_types")
+    def fake_generate_types(codex_bin: Path | None = None) -> None:
+        calls.append(f"generate_types:{codex_bin}")
 
     def fake_stage_sdk_package(_staging_dir: Path, sdk_version: str) -> Path:
         calls.append(f"stage_sdk:{sdk_version}")
@@ -951,7 +1064,125 @@ def test_stage_sdk_runs_type_generation_before_staging(tmp_path: Path) -> None:
 
     script.run_command(args, ops)
 
-    assert calls == ["generate_types", "stage_sdk:0.147.0"]
+    assert calls == ["generate_types:None", f"stage_sdk:{sdk_version}"]
+
+
+def test_generate_types_command_supports_explicit_codex_bin(tmp_path: Path) -> None:
+    script = _load_update_script_module()
+    calls: list[Path | None] = []
+    codex_bin = tmp_path / script.runtime_binary_name()
+    codex_bin.write_text("")
+    args = script.parse_args(["generate-types", "--codex-bin", str(codex_bin)])
+
+    def fake_generate_types(codex_bin: Path | None = None) -> None:
+        calls.append(codex_bin)
+
+    ops = script.CliOps(
+        generate_types=fake_generate_types,
+        stage_python_sdk_package=lambda _staging_dir, _sdk_version: tmp_path / "sdk-stage",
+        stage_python_runtime_package=(
+            lambda _staging_dir, _runtime_version, _package_archive, _platform_tag: (
+                tmp_path / "runtime-stage"
+            )
+        ),
+        current_sdk_version=lambda: "1.2.3",
+    )
+
+    script.run_command(args, ops)
+
+    assert calls == [codex_bin]
+
+
+def test_generate_schema_from_runtime_uses_experimental_flag(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    script = _load_update_script_module()
+    recorded: list[list[str]] = []
+    codex_bin = tmp_path / script.runtime_binary_name()
+    codex_bin.write_text("")
+
+    def fake_run(cmd: list[str], cwd: Path) -> None:
+        assert cwd == script.sdk_root()
+        recorded.append(cmd)
+
+    monkeypatch.setattr(script, "run", fake_run)
+    monkeypatch.setattr(
+        script,
+        "pinned_runtime_codex_path",
+        lambda: (_ for _ in ()).throw(AssertionError("explicit codex_bin should be used")),
+    )
+
+    script.generate_schema_from_pinned_runtime(tmp_path / "schema", codex_bin=codex_bin)
+
+    assert recorded == [
+        [
+            str(codex_bin),
+            "app-server",
+            "generate-json-schema",
+            "--experimental",
+            "--out",
+            str(tmp_path / "schema"),
+        ]
+    ]
+
+
+def test_stage_sdk_rewrites_runtime_source_to_published_dependency(tmp_path: Path) -> None:
+    script = _load_update_script_module()
+    staged = script.stage_python_sdk_package(tmp_path / "sdk-stage", "1.2.3")
+    pyproject_text = (staged / "pyproject.toml").read_text()
+    pyproject = tomllib.loads(pyproject_text)
+    assert "[tool.uv.sources]" not in pyproject_text
+    assert "../python-runtime" not in pyproject_text
+    assert pyproject["tool"]["uv"]["exclude-newer"] == "7 days"
+    assert pyproject["tool"]["uv"]["index-strategy"] == "first-index"
+    assert pyproject["tool"]["uv"]["pip"]["exclude-newer"] == "7 days"
+    assert pyproject["tool"]["uv"]["pip"]["index-strategy"] == "first-index"
+
+
+def test_remove_uv_sources_section_preserves_following_sections() -> None:
+    script = _load_update_script_module()
+    source = """[tool.uv]
+exclude-newer = "7 days"
+index-strategy = "first-index"
+
+[tool.uv.sources]
+openai-codex-cli-bin = { path = "../python-runtime" }
+
+# keep this blank line to catch brittle regex
+
+[tool.uv.pip]
+exclude-newer = "7 days"
+index-strategy = "first-index"
+
+[tool.extra]
+enabled = true
+"""
+    stripped = script._remove_uv_sources_section(source)
+    parsed = tomllib.loads(stripped)
+    assert "sources" not in parsed["tool"]["uv"]
+    assert parsed["tool"]["uv"]["pip"]["exclude-newer"] == "7 days"
+    assert parsed["tool"]["extra"]["enabled"] is True
+
+
+def test_runtime_version_fallback_requires_runtime_template(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    script = _load_update_script_module()
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        '[project]\nname = "openai-codex"\nversion = "1.0.0"\ndependencies = ["openai-codex-cli-bin"]\n'
+    )
+
+    monkeypatch.setattr(script, "sdk_pyproject_path", lambda: pyproject)
+    monkeypatch.setattr(script, "runtime_pyproject_path", lambda: tmp_path / "missing.toml")
+
+    def missing_distribution(_name: str) -> str:
+        raise script.importlib.metadata.PackageNotFoundError("openai-codex-cli-bin")
+
+    monkeypatch.setattr(script.importlib.metadata, "version", missing_distribution)
+    with pytest.raises(RuntimeError, match="runtime package template"):
+        script.pinned_runtime_version()
 
 
 def test_stage_runtime_stages_package_without_type_generation(tmp_path: Path) -> None:
@@ -970,7 +1201,7 @@ def test_stage_runtime_stages_package_without_type_generation(tmp_path: Path) ->
         ]
     )
 
-    def fake_generate_types() -> None:
+    def fake_generate_types(codex_bin: Path | None = None) -> None:
         calls.append("generate_types")
 
     def fake_stage_sdk_package(_staging_dir: Path, _codex_version: str) -> Path:
@@ -1092,3 +1323,102 @@ def test_broken_runtime_package_does_not_fall_back() -> None:
         client_module.resolve_codex_bin(client_module.CodexConfig(), ops)
 
     assert str(exc_info.value) == ("missing packaged binary")
+
+
+def test_public_flat_methods_only_expose_baseline_allowlisted_fields(tmp_path: Path) -> None:
+    from openai_codex.api import AsyncCodex, AsyncThread, Codex, Thread
+    from openai_codex.generated.v2_all import ThreadForkParams, ThreadResumeParams
+
+    forbidden = {"permissions", "dynamic_tools", "path", "history"}
+    forbidden_wire = {"permissions", "dynamicTools", "path", "history"}
+
+    def _kwonly_names(fn) -> set[str]:
+        signature = inspect.signature(fn)
+        return {
+            parameter.name
+            for parameter in signature.parameters.values()
+            if parameter.kind == inspect.Parameter.KEYWORD_ONLY
+        }
+
+    codex_start = _kwonly_names(Codex.thread_start)
+    async_codex_start = _kwonly_names(AsyncCodex.thread_start)
+    assert "environments" in codex_start
+    assert "environments" in async_codex_start
+    assert not (forbidden & codex_start)
+    assert not (forbidden & async_codex_start)
+
+    codex_resume = _kwonly_names(Codex.thread_resume)
+    async_codex_resume = _kwonly_names(AsyncCodex.thread_resume)
+    assert "exclude_turns" in ThreadResumeParams.model_fields
+    assert "exclude_turns" in codex_resume
+    assert "exclude_turns" in async_codex_resume
+    assert not (forbidden & codex_resume)
+    assert not (forbidden & async_codex_resume)
+
+    codex_fork = _kwonly_names(Codex.thread_fork)
+    async_codex_fork = _kwonly_names(AsyncCodex.thread_fork)
+    assert {"before_turn_id", "exclude_turns"} <= set(ThreadForkParams.model_fields)
+    for expected in {"last_turn_id", "before_turn_id", "exclude_turns"}:
+        assert expected in codex_fork
+        assert expected in async_codex_fork
+    assert not (forbidden & codex_fork)
+    assert not (forbidden & async_codex_fork)
+
+    thread_turn = _kwonly_names(Thread.turn)
+    async_thread_turn = _kwonly_names(AsyncThread.turn)
+    for expected in {"environments", "tool_output"}:
+        assert expected in thread_turn
+        assert expected in async_thread_turn
+    assert not (forbidden & thread_turn)
+    assert not (forbidden & async_thread_turn)
+
+    expected_thread_list = {
+        "archived",
+        "cursor",
+        "cwd",
+        "limit",
+        "model_providers",
+        "search_term",
+        "section_id",
+        "sort_direction",
+        "sort_key",
+        "source_kinds",
+        "use_state_db_only",
+    }
+    codex_list = _kwonly_names(Codex.thread_list)
+    async_codex_list = _kwonly_names(AsyncCodex.thread_list)
+    assert expected_thread_list <= codex_list
+    assert expected_thread_list <= async_codex_list
+    assert not ({"project_id", "parent_thread_id", "ancestor_thread_id"} & codex_list)
+    assert not ({"project_id", "parent_thread_id", "ancestor_thread_id"} & async_codex_list)
+
+    schema = _load_runtime_schema_bundle(tmp_path / "schema-check")
+    definition_props: set[str] = set()
+    for definition in schema.get("definitions", {}).values():
+        if not isinstance(definition, dict):
+            continue
+        props = definition.get("properties")
+        if isinstance(props, dict):
+            definition_props.update(props.keys())
+    assert forbidden_wire <= definition_props
+
+
+def test_generated_public_method_type_hints_resolve() -> None:
+    from openai_codex import api as api_module
+    from openai_codex.api import AsyncThread, Codex, Thread
+
+    assert "JsonValue" in api_module.__dict__
+    assert "environments" in get_type_hints(Codex.thread_start)
+    assert "tool_output" in get_type_hints(Thread.turn)
+    assert "tool_output" in get_type_hints(AsyncThread.turn)
+
+
+def test_key_fields_serialize_by_alias() -> None:
+    from openai_codex.generated.v2_all import ThreadForkParams, ThreadResumeParams
+
+    resumed = ThreadResumeParams(thread_id="thr_1", exclude_turns=True)
+    assert resumed.model_dump(by_alias=True)["excludeTurns"] is True
+    forked = ThreadForkParams(thread_id="thr_1", exclude_turns=True, before_turn_id="turn_1")
+    payload = forked.model_dump(by_alias=True)
+    assert payload["excludeTurns"] is True
+    assert payload["beforeTurnId"] == "turn_1"

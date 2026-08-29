@@ -2,15 +2,14 @@
 
 本文按功能分类整理 `codex app-server` 的 **v2 JSON-RPC** 接口（方法名、作用、依赖、Python SDK 覆盖）。协议字段、错误码与 JSON 示例以英文原文为准：
 
-- [`codex-rs/app-server/README.md`](../codex-rs/app-server/README.md)
-- 中文译本：[`codex-rs/app-server/README.ZH.md`](../codex-rs/app-server/README.ZH.md)
+- [`codex-rs/app-server/README.md`](../codex/codex-rs/app-server/README.md)
 - 类型定义：`codex-rs/app-server-protocol/src/protocol/common.rs` 中的 `ClientRequest`
 
 传输不是 REST，而是 JSON-RPC（stdio / Unix socket；websocket 为实验性）。标 **实验性** 的方法需要在 `initialize.capabilities.experimentalApi = true` 后才可用。
 
 ## Python SDK 列说明
 
-对照包 `openai-codex`（`sdk/python`）：
+对照包 `openai-codex`（`sdk-v1/python`）：
 
 | 取值     | 含义                                                                                                |
 | -------- | --------------------------------------------------------------------------------------------------- |
@@ -88,29 +87,29 @@ initialize
 
 | 方法                                      | 功能                                              | 依赖                                     | Python SDK                                                                                          |
 | ----------------------------------------- | ------------------------------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `thread/start`                            | 新建对话，自动订阅事件                            | cwd、model、sandbox / `permissions` 可选 | **公开**（`codex.thread_start`；参数是子集，无 `permissions` / `environments` / `dynamicTools` 等） |
-| `thread/resume`                           | 按 id 重新打开，后续 turn 追加                    | thread 未被别的进程独占写入              | **公开**（`codex.thread_resume`）                                                                   |
-| `thread/fork`                             | 复制历史成新 thread                               | 可选 `lastTurnId` / `beforeTurnId`       | **部分**：有 `thread_fork`，无 `lastTurnId` / `beforeTurnId` / `excludeTurns`                       |
+| `thread/start`                            | 新建对话，自动订阅事件                            | cwd、model、sandbox / `permissions` 可选 | **公开**（`codex.thread_start`；公开面包含 `environments`，且不暴露 `permissions` / `dynamicTools`） |
+| `thread/resume`                           | 按 id 重新打开，后续 turn 追加                    | thread 未被别的进程独占写入              | **公开**（`codex.thread_resume`；包含 `excludeTurns`）                                             |
+| `thread/fork`                             | 复制历史成新 thread                               | 可选 `lastTurnId` / `beforeTurnId` / `excludeTurns` | **公开**（`codex.thread_fork`；`beforeTurnId` 为实验性字段） |
 | `thread/list`                             | 分页历史；可按 cwd / 归档 / section 过滤          | —                                        | **公开**（`codex.thread_list`）                                                                     |
 | `thread/read`                             | 读存储 thread，不 resume                          | 全量 `includeTurns` 对分页 thread 已弃用 | **公开**（`thread.read()`）                                                                         |
 | `thread/archive`                          | 归档（含子代）                                    | 独占写入锁                               | **公开**（`codex.thread_archive`）                                                                  |
 | `thread/unarchive`                        | 恢复归档                                          | 独占写入锁                               | **公开**（`codex.thread_unarchive`）                                                                |
-| `thread/delete`                           | 硬删（含子代）                                    | 独占写入锁                               | **无**                                                                                              |
+| `thread/delete`                           | 硬删（含子代）                                    | 独占写入锁                               | **公开**（`codex.thread_delete`）                                                                  |
 | `thread/name/set`                         | 改显示名                                          | 已加载或已持久化 rollout                 | **公开**（`thread.set_name`）                                                                       |
-| `thread/unsubscribe`                      | 取消订阅；30 分钟无活动后卸载并发 `thread/closed` | —                                        | **无**                                                                                              |
-| `thread/loaded/list`                      | 内存中已加载的 thread id                          | —                                        | **无**                                                                                              |
-| `thread/turns/list`                       | 分页 turn 历史，不 resume                         | 分页 store                               | **无**                                                                                              |
-| `thread/items/list`                       | 分页 item，不 resume                              | 分页 store                               | **无**                                                                                              |
+| `thread/unsubscribe`                      | 取消订阅；30 分钟无活动后卸载并发 `thread/closed` | —                                        | **公开**（`thread.unsubscribe`）                                                                    |
+| `thread/loaded/list`                      | 内存中已加载的 thread id                          | —                                        | **公开**（`codex.thread_loaded_list`）                                                              |
+| `thread/turns/list`                       | 分页 turn 历史，不 resume                         | 分页 store                               | **公开**（`thread.turns_list`）                                                                     |
+| `thread/items/list`                       | 分页 item，不 resume                              | 分页 store                               | **公开**（`thread.items_list`）                                                                     |
 | `thread/compact/start`                    | 手动压缩历史                                      | 已加载 thread                            | **公开**（`thread.compact`）                                                                        |
 | `thread/rollback` **已弃用**              | 丢掉最后 N 轮                                     | 分页 thread 不支持                       | **无**                                                                                              |
-| `thread/revert`                           | 把历史裁到 `beforeTurnId` 之前                    | 分页 thread                              | **无**                                                                                              |
-| `thread/inject_items`                     | 注入原始 Responses item，不开新 turn              | 已加载 thread                            | **无**                                                                                              |
+| `thread/revert`                           | 把历史裁到 `beforeTurnId` 之前                    | 分页 thread                              | **公开**（`thread.revert`）                                                                         |
+| `thread/inject_items`                     | 注入原始 Responses item，不开新 turn              | 已加载 thread                            | **公开**（`thread.inject_items`）                                                                   |
 | `thread/shellCommand`                     | TUI `!` 命令，**无沙箱全权限**                    | 已加载 thread                            | **无**                                                                                              |
 | `thread/approveGuardianDeniedAction`      | 手动放行 Guardian 拒绝的操作                      | —                                        | **无**                                                                                              |
-| `thread/metadata/update`                  | 改 sqlite 元数据 / `projectId`                    | —                                        | **无**                                                                                              |
-| `thread/section/move`                     | 移入 / 移出 section                               | `threadSection/*`                        | **无**                                                                                              |
-| `thread/search` **实验性**                | 搜索 thread                                       | `experimentalApi`                        | **无**                                                                                              |
-| `thread/searchOccurrences` **实验性**     | 在分页 thread 里搜字面匹配                        | 分页 thread                              | **无**                                                                                              |
+| `thread/metadata/update`                  | 改 sqlite 元数据 / `projectId`                    | —                                        | **公开**（`thread.metadata_update`）                                                                |
+| `thread/section/move`                     | 移入 / 移出 section                               | `threadSection/*`                        | **公开**（`thread.section_move`）                                                                   |
+| `thread/search` **实验性**                | 搜索 thread                                       | `experimentalApi`                        | **公开**（`codex.experimental.thread_search`）                                                      |
+| `thread/searchOccurrences` **实验性**     | 在分页 thread 里搜字面匹配                        | 分页 thread                              | **公开**（`codex.experimental.thread_search_occurrences`）                                          |
 | `thread/increment_elicitation` **实验性** | 线程外审批期间暂停超时计数                        | 已加载 thread                            | **无**                                                                                              |
 | `thread/decrement_elicitation` **实验性** | 恢复超时计数                                      | 已加载 thread                            | **无**                                                                                              |
 
@@ -122,10 +121,10 @@ initialize
 
 | 方法                              | 功能                                                           | 依赖                                                | Python SDK                                                                                                                                                                   |
 | --------------------------------- | -------------------------------------------------------------- | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `turn/start`                      | 发用户输入（text / image / audio / skill / mention），开始生成 | 已加载 thread；可带 sandbox / `permissions` / model | **公开**（`thread.turn` / `thread.run`；输入支持 text / image / localImage / `SkillInput` / `MentionInput`；**无** audio、独立 `toolOutput`、`permissions`、`environments`） |
+| `turn/start`                      | 发用户输入（text / image / audio / skill / mention），开始生成 | 已加载 thread；可带 sandbox / `permissions` / model | **公开**（`thread.turn` / `thread.run`；包含稳定 `toolOutput`，`environments` 为实验性字段；不暴露 `permissions`） |
 | `turn/steer`                      | 往**进行中**的常规 turn 追加输入                               | `expectedTurnId`；review / compact 拒绝             | **公开**（`TurnHandle.steer`）                                                                                                                                               |
 | `turn/interrupt`                  | 取消进行中的 turn                                              | `(threadId, turnId)`                                | **公开**（`TurnHandle.interrupt`）                                                                                                                                           |
-| `turn/settings/update` **实验性** | 热改当前 live task 的 model / effort                           | `step_model_switching` 功能开关                     | **无**                                                                                                                                                                       |
+| `turn/settings/update` **实验性** | 热改当前 live task 的 model / effort                           | `step_model_switching` 功能开关                     | **公开**（`TurnHandle.settings_update`）                                                                                                                             |
 
 **输入类型：** `text`、`image` / `localImage`、`audio` / `localAudio`、`skill`、`mention`（app / plugin）、独立 `toolOutput`。
 
@@ -139,10 +138,10 @@ Skill **不是**单独跑一轮的引擎；要进模型上下文，走 `turn/sta
 
 | 方法                         | 功能                                | 依赖                                                          | Python SDK               |
 | ---------------------------- | ----------------------------------- | ------------------------------------------------------------- | ------------------------ |
-| `skills/list`                | 按 cwd 列出可用 skill               | `~/.codex/skills/`、`<cwd>/.codex/skills/`、plugin 捆绑 skill | **无**                   |
-| `skills/extraRoots/set`      | 设置进程级额外 skill 根             | **不持久化**；进程退出丢失                                    | **无**                   |
-| `skills/config/write`        | 按 name 或绝对 path 启用 / 禁用     | 写用户 config                                                 | **无**                   |
-| `plugin/skill/read`          | 预览未安装远程 plugin 的 `SKILL.md` | 远程 marketplace                                              | **无**                   |
+| `skills/list`                | 按 cwd 列出可用 skill               | `~/.codex/skills/`、`<cwd>/.codex/skills/`、plugin 捆绑 skill | **公开**（`codex.skills_list`） |
+| `skills/extraRoots/set`      | 设置进程级额外 skill 根             | **不持久化**；进程退出丢失                                    | **公开**（`codex.skills_extra_roots_set`） |
+| `skills/config/write`        | 按 name 或绝对 path 启用 / 禁用     | 写用户 config                                                 | **公开**（`codex.skills_config_write`） |
+| `plugin/skill/read`          | 预览未安装远程 plugin 的 `SKILL.md` | 远程 marketplace                                              | **公开**（`codex.plugin_skill_read`） |
 | `turn/start` 的 `skill` 输入 | 本轮注入 skill 指令                 | 已知 `name` + `path`                                          | **公开**（`SkillInput`） |
 
 **调用方式（数据面）：** `turn/start` 同时给 `$skill-name` 文本 + `{type:"skill", name, path}`。省略 `skill` item 会让模型自己解析，更慢、更不稳定。
@@ -160,15 +159,15 @@ Skill **不是**单独跑一轮的引擎；要进模型上下文，走 `turn/sta
 
 | 方法                                      | 功能                                                   | 依赖                                 | Python SDK |
 | ----------------------------------------- | ------------------------------------------------------ | ------------------------------------ | ---------- |
-| `config/mcpServer/reload`                 | 从磁盘重载 MCP 配置，**下一轮 turn** 才进已加载 thread | 先 `config/batchWrite` 或手改 toml   | **无**     |
-| `mcpServerStatus/list`                    | 列出 server、工具、鉴权、runtime 状态                  | 可选 `threadId`；省略则无 runtime    | **无**     |
+| `config/mcpServer/reload`                 | 从磁盘重载 MCP 配置，**下一轮 turn** 才进已加载 thread | 先 `config/batchWrite` 或手改 toml   | **公开**（`codex.mcp_reload`） |
+| `mcpServerStatus/list`                    | 列出 server、工具、鉴权、runtime 状态                  | 可选 `threadId`；省略则无 runtime    | **公开**（`codex.mcp_status_list`） |
 | `mcpServer/oauth/login`                   | 浏览器 OAuth，返回 `authorization_url`                 | 已配置 server；可选 `threadId`       | **无**     |
-| `mcpServer/resource/read`                 | 读 MCP resource                                        | `server` + `uri`；可选 thread 作用域 | **无**     |
-| `mcpServer/tool/call`                     | **客户端直接**调某个 MCP 工具                          | 必须有 `threadId`；子 agent 拒绝     | **无**     |
+| `mcpServer/resource/read`                 | 读 MCP resource                                        | `server` + `uri`；可选 thread 作用域 | **公开**（`codex.mcp_resource_read`） |
+| `mcpServer/tool/call`                     | **客户端直接**调某个 MCP 工具                          | 必须有 `threadId`；子 agent 拒绝     | **公开**（`thread.mcp_tool_call`） |
 | `mcpServer/event/stream/start` **实验性** | 订阅 MCP 事件流                                        | `experimentalApi`                    | **无**     |
 | `mcpServer/event/stream/stop` **实验性**  | 停止订阅                                               | `experimentalApi`                    | **无**     |
-| `config/read`                             | 读含 `mcp_servers.*` 的有效配置                        | 点分路径，snake_case 对齐 toml       | **无**     |
-| `config/batchWrite`                       | 写 MCP 等配置                                          | 同上                                 | **无**     |
+| `config/read`                             | 读含 `mcp_servers.*` 的有效配置                        | 点分路径，snake_case 对齐 toml       | **公开**（`codex.config_read`） |
+| `config/batchWrite`                       | 写 MCP 等配置                                          | 同上                                 | **公开**（`codex.config_batch_write`） |
 
 Turn 进行中模型自行调用的 MCP **会跑**（引擎侧），只是 SDK **没有** MCP 管理 / 直调封装。
 
@@ -228,17 +227,17 @@ Turn 进行中模型自行调用的 MCP **会跑**（引擎侧），只是 SDK *
 
 | 方法                                       | 功能                            | 依赖                                 | Python SDK |
 | ------------------------------------------ | ------------------------------- | ------------------------------------ | ---------- |
-| `config/read`                              | 分层解析后的有效配置            | 含 `desktop.*`                       | **无**     |
-| `config/value/write`                       | 写单个键                        | 与 MDM / requirements 冲突则只读错误 | **无**     |
-| `config/batchWrite`                        | 原子多键写入，可选热重载 thread | `reloadUserConfig: true`             | **无**     |
-| `configRequirements/read`                  | 企业托管约束                    | `requirements.toml` / MDM            | **无**     |
-| `experimentalFeature/list`                 | 列 feature flags                | 可选 `threadId`                      | **无**     |
-| `experimentalFeature/enablement/set`       | 进程内改 enablement             | 优先级低于 cloud / `--enable` / toml | **无**     |
+| `config/read`                              | 分层解析后的有效配置            | 含 `desktop.*`                       | **公开**（`codex.config_read`） |
+| `config/value/write`                       | 写单个键                        | 与 MDM / requirements 冲突则只读错误 | **公开**（`codex.config_value_write`） |
+| `config/batchWrite`                        | 原子多键写入，可选热重载 thread | `reloadUserConfig: true`             | **公开**（`codex.config_batch_write`） |
+| `configRequirements/read`                  | 企业托管约束                    | `requirements.toml` / MDM            | **公开**（`codex.config_requirements_read`） |
+| `experimentalFeature/list`                 | 列 feature flags                | 可选 `threadId`                      | **公开**（`codex.experimental_feature_list`） |
+| `experimentalFeature/enablement/set`       | 进程内改 enablement             | 优先级低于 cloud / `--enable` / toml | **公开**（`codex.experimental_feature_enablement_set`） |
 | `permissionProfile/list`                   | beta 权限 profile               | 可选 `cwd`                           | **无**     |
-| `collaborationMode/list` **实验性**        | 协作模式预设                    | —                                    | **无**     |
-| `externalAgentConfig/detect`               | 检测可迁移外部 agent 产物       | —                                    | **无**     |
-| `externalAgentConfig/import`               | 导入迁移项                      | —                                    | **无**     |
-| `externalAgentConfig/import/readHistories` | 读导入历史                      | —                                    | **无**     |
+| `collaborationMode/list` **实验性**        | 协作模式预设                    | —                                    | **公开**（`codex.experimental.collaboration_mode_list`） |
+| `externalAgentConfig/detect`               | 检测可迁移外部 agent 产物       | —                                    | **公开**（`codex.external_agent_config_detect`） |
+| `externalAgentConfig/import`               | 导入迁移项                      | —                                    | **公开**（`codex.external_agent_config_import`） |
+| `externalAgentConfig/import/readHistories` | 读导入历史                      | —                                    | **公开**（`codex.external_agent_config_import_read_histories`） |
 
 启动时可经 `CodexConfig.config_overrides` 传 CLI `--config`，这不是上述 RPC。
 
@@ -249,7 +248,7 @@ Turn 进行中模型自行调用的 MCP **会跑**（引擎侧），只是 SDK *
 | 方法                              | 功能               | 依赖                                             | Python SDK                   |
 | --------------------------------- | ------------------ | ------------------------------------------------ | ---------------------------- |
 | `model/list`                      | 目录里的模型       | `includeHidden`；**不是**本地 Ollama / vLLM 标签 | **公开**（`codex.models()`） |
-| `modelProvider/capabilities/read` | 当前 provider 能力 | 当前配置的 provider                              | **无**                       |
+| `modelProvider/capabilities/read` | 当前 provider 能力 | 当前配置的 provider                              | **公开**（`codex.model_provider_capabilities`） |
 
 实际用哪个模型：`thread/start` / `turn/start` 的 `model`（公开参数有），或 `config.toml`。本地 vLLM 走 `[model_providers.*]`，不走 `model/list`。
 
@@ -281,19 +280,19 @@ Agent 在 turn 里跑的沙箱命令 **会执行**（走 `item/commandExecution*
 
 | 方法                                       | 功能             | 依赖         | Python SDK |
 | ------------------------------------------ | ---------------- | ------------ | ---------- |
-| `fs/readFile`                              | 读绝对路径文件   | 路径必须绝对 | **无**     |
-| `fs/writeFile`                             | 写文件           | 同上         | **无**     |
-| `fs/createDirectory`                       | 建目录           | 同上         | **无**     |
-| `fs/getMetadata`                           | 元数据           | 同上         | **无**     |
-| `fs/readDirectory`                         | 列目录           | 同上         | **无**     |
-| `fs/remove`                                | 删除             | 同上         | **无**     |
-| `fs/copy`                                  | 复制             | 同上         | **无**     |
-| `fs/watch`                                 | 监视变更         | `watchId`    | **无**     |
-| `fs/unwatch`                               | 停止监视         | `watchId`    | **无**     |
-| `fuzzyFileSearch`                          | 一次性模糊搜文件 | 遗留仍可用   | **无**     |
-| `fuzzyFileSearch/sessionStart` **实验性**  | 开始搜索会话     | —            | **无**     |
-| `fuzzyFileSearch/sessionUpdate` **实验性** | 更新查询         | —            | **无**     |
-| `fuzzyFileSearch/sessionStop` **实验性**   | 停止会话         | —            | **无**     |
+| `fs/readFile`                              | 读绝对路径文件   | 路径必须绝对 | **公开**（`codex.fs_read_file`） |
+| `fs/writeFile`                             | 写文件           | 同上         | **公开**（`codex.fs_write_file`） |
+| `fs/createDirectory`                       | 建目录           | 同上         | **公开**（`codex.fs_create_directory`） |
+| `fs/getMetadata`                           | 元数据           | 同上         | **公开**（`codex.fs_get_metadata`） |
+| `fs/readDirectory`                         | 列目录           | 同上         | **公开**（`codex.fs_read_directory`） |
+| `fs/remove`                                | 删除             | 同上         | **公开**（`codex.fs_remove`） |
+| `fs/copy`                                  | 复制             | 同上         | **公开**（`codex.fs_copy`） |
+| `fs/watch`                                 | 监视变更         | `watchId`    | **公开**（`codex.fs_watch` → `FsWatchHandle`；SDK 分期仍要求 `experimental_api`） |
+| `fs/unwatch`                               | 停止监视         | `watchId`    | **公开**（`codex.fs_unwatch`；SDK 分期仍要求 `experimental_api`） |
+| `fuzzyFileSearch`                          | 一次性模糊搜文件 | 遗留仍可用   | **公开**（`codex.fuzzy_file_search`） |
+| `fuzzyFileSearch/sessionStart` **实验性**  | 开始搜索会话     | —            | **公开**（`codex.experimental.fuzzy_file_search_session_start`） |
+| `fuzzyFileSearch/sessionUpdate` **实验性** | 更新查询         | —            | **公开**（`codex.experimental.fuzzy_file_search_session_update`） |
+| `fuzzyFileSearch/sessionStop` **实验性**   | 停止会话         | —            | **公开**（`codex.experimental.fuzzy_file_search_session_stop`） |
 
 这是 **host 文件系统** RPC，不是模型工具。模型改文件走 turn 里的 `fileChange`（SDK 经 turn 流可见，无单独 API）。
 
@@ -303,29 +302,29 @@ Agent 在 turn 里跑的沙箱命令 **会执行**（走 `item/commandExecution*
 
 | 方法                                | 功能                    | 依赖                         | Python SDK                                                         |
 | ----------------------------------- | ----------------------- | ---------------------------- | ------------------------------------------------------------------ |
-| `thread/goal/set`                   | 创建 / 更新持久化目标   | 已物化 thread；子 agent 拒绝 | **内部**（`CodexClient.thread_goal_set` / `start_goal_operation`） |
-| `thread/goal/get`                   | 读当前 goal             | 子 agent 也允许              | **无**                                                             |
-| `thread/goal/clear`                 | 清除 goal               | 子 agent 拒绝                | **内部**（`CodexClient.thread_goal_clear`）                        |
-| `thread/queue/add` **实验性**       | 排队后续用户消息        | 每 thread 最多 100 条        | **无**                                                             |
-| `thread/queue/list` **实验性**      | 列队列                  | —                            | **无**                                                             |
-| `thread/queue/update` **实验性**    | 改排队项                | —                            | **无**                                                             |
-| `thread/queue/delete` **实验性**    | 删排队项                | —                            | **无**                                                             |
-| `thread/queue/reorder` **实验性**   | 重排                    | —                            | **无**                                                             |
-| `thread/queue/start` **实验性**     | 空闲时启动队头          | —                            | **无**                                                             |
-| `thread/memoryMode/set` **实验性**  | 记忆资格                | `CODEX_HOME/memories`        | **无**                                                             |
-| `memory/reset` **实验性**           | 清空 memories 目录      | 同上                         | **无**                                                             |
-| `thread/settings/update` **实验性** | 改下一轮设置，不开 turn | 已加载 thread                | **无**                                                             |
-| `project/list` **实验性**           | 列 project              | SQLite                       | **无**                                                             |
-| `project/read` **实验性**           | 读 project              | —                            | **无**                                                             |
-| `project/create` **实验性**         | 创建                    | 幂等 key                     | **无**                                                             |
-| `project/import` **实验性**         | 导入并分配 thread       | 幂等 key                     | **无**                                                             |
-| `project/update` **实验性**         | 更新                    | —                            | **无**                                                             |
-| `project/move` **实验性**           | 调整顺序                | —                            | **无**                                                             |
-| `project/delete` **实验性**         | 删除分配（不删 thread） | —                            | **无**                                                             |
-| `threadSection/list`                | 列分组                  | —                            | **无**                                                             |
-| `threadSection/create`              | 创建分组                | —                            | **无**                                                             |
-| `threadSection/update`              | 重命名 / 外观           | pinned 不可改                | **无**                                                             |
-| `threadSection/delete`              | 删除分组                | pinned 不可删                | **无**                                                             |
+| `thread/goal/set`                   | 创建 / 更新持久化目标   | 已物化 thread；子 agent 拒绝 | **公开**（`thread.goal_set`）                                              |
+| `thread/goal/get`                   | 读当前 goal             | 子 agent 也允许              | **公开**（`thread.goal_get`）                                              |
+| `thread/goal/clear`                 | 清除 goal               | 子 agent 拒绝                | **公开**（`thread.goal_clear`）                                            |
+| `thread/queue/add` **实验性**       | 排队后续用户消息        | 每 thread 最多 100 条        | **公开**（`thread.queue_add`）                                             |
+| `thread/queue/list` **实验性**      | 列队列                  | —                            | **公开**（`thread.queue_list`）                                            |
+| `thread/queue/update` **实验性**    | 改排队项                | —                            | **公开**（`thread.queue_update`）                                          |
+| `thread/queue/delete` **实验性**    | 删排队项                | —                            | **公开**（`thread.queue_delete`）                                          |
+| `thread/queue/reorder` **实验性**   | 重排                    | —                            | **公开**（`thread.queue_reorder`）                                         |
+| `thread/queue/start` **实验性**     | 空闲时启动队头          | —                            | **公开**（`thread.queue_start`）                                           |
+| `thread/memoryMode/set` **实验性**  | 记忆资格                | `CODEX_HOME/memories`        | **公开**（`thread.memory_mode_set`）                                       |
+| `memory/reset` **实验性**           | 清空 memories 目录      | 同上                         | **公开**（`codex.experimental.memory_reset`）                              |
+| `thread/settings/update` **实验性** | 改下一轮设置，不开 turn | 已加载 thread                | **公开**（`thread.settings_update`）                                       |
+| `project/list` **实验性**           | 列 project              | SQLite                       | **公开**（`codex.experimental.project_list`）                              |
+| `project/read` **实验性**           | 读 project              | —                            | **公开**（`codex.experimental.project_read`）                              |
+| `project/create` **实验性**         | 创建                    | 幂等 key                     | **公开**（`codex.experimental.project_create`）                            |
+| `project/import` **实验性**         | 导入并分配 thread       | 幂等 key                     | **公开**（`codex.experimental.project_import`）                            |
+| `project/update` **实验性**         | 更新                    | —                            | **公开**（`codex.experimental.project_update`）                            |
+| `project/move` **实验性**           | 调整顺序                | —                            | **公开**（`codex.experimental.project_move`）                              |
+| `project/delete` **实验性**         | 删除分配（不删 thread） | —                            | **公开**（`codex.experimental.project_delete`）                            |
+| `threadSection/list`                | 列分组                  | —                            | **公开**（`codex.thread_section_list`）                                    |
+| `threadSection/create`              | 创建分组                | —                            | **公开**（`codex.thread_section_create`）                                  |
+| `threadSection/update`              | 重命名 / 外观           | pinned 不可改                | **公开**（`codex.thread_section_update`）                                  |
+| `threadSection/delete`              | 删除分组                | pinned 不可删                | **公开**（`codex.thread_section_delete`）                                  |
 
 ---
 

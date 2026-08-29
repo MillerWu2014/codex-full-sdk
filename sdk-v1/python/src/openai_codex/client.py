@@ -17,6 +17,7 @@ from ._goal import _GoalOperationState
 from ._message_router import MessageRouter
 from ._version import __version__ as SDK_VERSION
 from .errors import CodexError, InvalidRequestError, TransportClosedError
+from .generated import v2_all as v2
 from .generated.notification_registry import NOTIFICATION_MODELS
 from .generated.v2_all import (
     AccountLoginCompletedNotification,
@@ -61,6 +62,12 @@ from .models import (
     UnknownNotification,
 )
 from .retry import retry_on_overload
+from .types import (
+    FuzzyFileSearchResponse,
+    FuzzyFileSearchSessionStartResponse,
+    FuzzyFileSearchSessionStopResponse,
+    FuzzyFileSearchSessionUpdateResponse,
+)
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 ApprovalHandler = Callable[[str, JsonObject | None], JsonObject]
@@ -79,19 +86,7 @@ def _active_turn_id_from_error(exc: InvalidRequestError) -> str | None:
     return match.group(1) if match is not None else None
 
 
-def _params_dict(
-    params: (
-        V2ThreadStartParams
-        | V2ThreadResumeParams
-        | V2ThreadListParams
-        | V2ThreadForkParams
-        | V2TurnStartParams
-        | V2GetAccountParams
-        | V2LoginAccountParams
-        | JsonObject
-        | None
-    ),
-) -> JsonObject:
+def _params_dict(params: BaseModel | JsonObject | None) -> JsonObject:
     if params is None:
         return {}
     if hasattr(params, "model_dump"):
@@ -316,6 +311,8 @@ class CodexClient:
         response_model: type[ModelT],
     ) -> ModelT:
         result = self._request_raw(method, params)
+        if result is None:
+            result = {}
         if not isinstance(result, dict):
             raise CodexError(f"{method} response must be a JSON object")
         return response_model.model_validate(result)
@@ -326,9 +323,11 @@ class CodexClient:
         waiter = self._router.create_response_waiter(request_id)
 
         try:
-            message: JsonObject = {"id": request_id, "method": method}
-            if params is not None:
-                message["params"] = params
+            message: JsonObject = {
+                "id": request_id,
+                "method": method,
+                "params": {} if params is None else params,
+            }
             self._write_message(message)
         except BaseException:
             self._router.discard_response_waiter(request_id)
@@ -373,6 +372,18 @@ class CodexClient:
     def next_turn_notification(self, turn_id: str) -> Notification:
         """Return the next routed notification for the requested turn id."""
         return self._router.next_turn_notification(turn_id)
+
+    def register_watch_notifications(self, watch_id: str) -> None:
+        """Start routing fs/changed notifications for one watch id."""
+        self._router.register_watch(watch_id)
+
+    def unregister_watch_notifications(self, watch_id: str) -> None:
+        """Stop routing fs/changed notifications for one watch id."""
+        self._router.unregister_watch(watch_id)
+
+    def next_watch_notification(self, watch_id: str) -> Notification | None:
+        """Return the next routed fs/changed notification, or None if closed."""
+        return self._router.next_watch_notification(watch_id)
 
     def register_goal_operation(self, thread_id: str) -> _GoalOperationState:
         """Register a private thread-scoped route for a logical goal turn."""
@@ -666,6 +677,461 @@ class CodexClient:
             "model/list",
             {"includeHidden": include_hidden},
             response_model=ModelListResponse,
+        )
+
+    def thread_delete(self, params: v2.ThreadDeleteParams | JsonObject) -> v2.ThreadDeleteResponse:
+        return self.request(
+            "thread/delete", _params_dict(params), response_model=v2.ThreadDeleteResponse
+        )
+
+    def thread_unsubscribe(
+        self, params: v2.ThreadUnsubscribeParams | JsonObject
+    ) -> v2.ThreadUnsubscribeResponse:
+        return self.request(
+            "thread/unsubscribe", _params_dict(params), response_model=v2.ThreadUnsubscribeResponse
+        )
+
+    def thread_loaded_list(
+        self, params: v2.ThreadLoadedListParams | JsonObject | None = None
+    ) -> v2.ThreadLoadedListResponse:
+        return self.request(
+            "thread/loaded/list", _params_dict(params), response_model=v2.ThreadLoadedListResponse
+        )
+
+    def thread_turns_list(
+        self, params: v2.ThreadTurnsListParams | JsonObject
+    ) -> v2.ThreadTurnsListResponse:
+        return self.request(
+            "thread/turns/list", _params_dict(params), response_model=v2.ThreadTurnsListResponse
+        )
+
+    def thread_items_list(
+        self, params: v2.ThreadItemsListParams | JsonObject
+    ) -> v2.ThreadItemsListResponse:
+        return self.request(
+            "thread/items/list", _params_dict(params), response_model=v2.ThreadItemsListResponse
+        )
+
+    def thread_revert(self, params: v2.ThreadRevertParams | JsonObject) -> v2.ThreadRevertResponse:
+        return self.request(
+            "thread/revert", _params_dict(params), response_model=v2.ThreadRevertResponse
+        )
+
+    def thread_inject_items(
+        self, params: v2.ThreadInjectItemsParams | JsonObject
+    ) -> v2.ThreadInjectItemsResponse:
+        return self.request(
+            "thread/inject_items", _params_dict(params), response_model=v2.ThreadInjectItemsResponse
+        )
+
+    def thread_metadata_update(
+        self, params: v2.ThreadMetadataUpdateParams | JsonObject
+    ) -> v2.ThreadMetadataUpdateResponse:
+        return self.request(
+            "thread/metadata/update",
+            _params_dict(params),
+            response_model=v2.ThreadMetadataUpdateResponse,
+        )
+
+    def thread_section_move(
+        self, params: v2.ThreadSectionMoveParams | JsonObject
+    ) -> v2.ThreadSectionMoveResponse:
+        return self.request(
+            "thread/section/move", _params_dict(params), response_model=v2.ThreadSectionMoveResponse
+        )
+
+    def thread_goal_get(
+        self, params: v2.ThreadGoalGetParams | JsonObject
+    ) -> v2.ThreadGoalGetResponse:
+        return self.request(
+            "thread/goal/get", _params_dict(params), response_model=v2.ThreadGoalGetResponse
+        )
+
+    def thread_section_list(
+        self, params: v2.ThreadSectionListParams | JsonObject | None = None
+    ) -> v2.ThreadSectionListResponse:
+        return self.request(
+            "threadSection/list", _params_dict(params), response_model=v2.ThreadSectionListResponse
+        )
+
+    def thread_section_create(
+        self, params: v2.ThreadSectionCreateParams | JsonObject
+    ) -> v2.ThreadSectionCreateResponse:
+        return self.request(
+            "threadSection/create",
+            _params_dict(params),
+            response_model=v2.ThreadSectionCreateResponse,
+        )
+
+    def thread_section_update(
+        self, params: v2.ThreadSectionUpdateParams | JsonObject
+    ) -> v2.ThreadSectionUpdateResponse:
+        return self.request(
+            "threadSection/update",
+            _params_dict(params),
+            response_model=v2.ThreadSectionUpdateResponse,
+        )
+
+    def thread_section_delete(
+        self, params: v2.ThreadSectionDeleteParams | JsonObject
+    ) -> v2.ThreadSectionDeleteResponse:
+        return self.request(
+            "threadSection/delete",
+            _params_dict(params),
+            response_model=v2.ThreadSectionDeleteResponse,
+        )
+
+    def skills_list(
+        self, params: v2.SkillsListParams | JsonObject | None = None
+    ) -> v2.SkillsListResponse:
+        return self.request(
+            "skills/list", _params_dict(params), response_model=v2.SkillsListResponse
+        )
+
+    def skills_extra_roots_set(
+        self, params: v2.SkillsExtraRootsSetParams | JsonObject
+    ) -> v2.SkillsExtraRootsSetResponse:
+        return self.request(
+            "skills/extraRoots/set",
+            _params_dict(params),
+            response_model=v2.SkillsExtraRootsSetResponse,
+        )
+
+    def skills_config_write(
+        self, params: v2.SkillsConfigWriteParams | JsonObject
+    ) -> v2.SkillsConfigWriteResponse:
+        return self.request(
+            "skills/config/write", _params_dict(params), response_model=v2.SkillsConfigWriteResponse
+        )
+
+    def plugin_skill_read(
+        self, params: v2.PluginSkillReadParams | JsonObject
+    ) -> v2.PluginSkillReadResponse:
+        return self.request(
+            "plugin/skill/read", _params_dict(params), response_model=v2.PluginSkillReadResponse
+        )
+
+    def mcp_reload(self) -> v2.McpServerRefreshResponse:
+        return self.request(
+            "config/mcpServer/reload", None, response_model=v2.McpServerRefreshResponse
+        )
+
+    def mcp_status_list(
+        self, params: v2.ListMcpServerStatusParams | JsonObject | None = None
+    ) -> v2.ListMcpServerStatusResponse:
+        return self.request(
+            "mcpServerStatus/list",
+            _params_dict(params),
+            response_model=v2.ListMcpServerStatusResponse,
+        )
+
+    def mcp_resource_read(
+        self, params: v2.McpResourceReadParams | JsonObject
+    ) -> v2.McpResourceReadResponse:
+        return self.request(
+            "mcpServer/resource/read",
+            _params_dict(params),
+            response_model=v2.McpResourceReadResponse,
+        )
+
+    def mcp_tool_call(
+        self, params: v2.McpServerToolCallParams | JsonObject
+    ) -> v2.McpServerToolCallResponse:
+        return self.request(
+            "mcpServer/tool/call", _params_dict(params), response_model=v2.McpServerToolCallResponse
+        )
+
+    def config_read(
+        self, params: v2.ConfigReadParams | JsonObject | None = None
+    ) -> v2.ConfigReadResponse:
+        return self.request(
+            "config/read", _params_dict(params), response_model=v2.ConfigReadResponse
+        )
+
+    def config_value_write(
+        self, params: v2.ConfigValueWriteParams | JsonObject
+    ) -> v2.ConfigWriteResponse:
+        return self.request(
+            "config/value/write", _params_dict(params), response_model=v2.ConfigWriteResponse
+        )
+
+    def config_batch_write(
+        self, params: v2.ConfigBatchWriteParams | JsonObject
+    ) -> v2.ConfigWriteResponse:
+        return self.request(
+            "config/batchWrite", _params_dict(params), response_model=v2.ConfigWriteResponse
+        )
+
+    def config_requirements_read(self) -> v2.ConfigRequirementsReadResponse:
+        return self.request(
+            "configRequirements/read", None, response_model=v2.ConfigRequirementsReadResponse
+        )
+
+    def experimental_feature_list(
+        self, params: v2.ExperimentalFeatureListParams | JsonObject | None = None
+    ) -> v2.ExperimentalFeatureListResponse:
+        return self.request(
+            "experimentalFeature/list",
+            _params_dict(params),
+            response_model=v2.ExperimentalFeatureListResponse,
+        )
+
+    def experimental_feature_enablement_set(
+        self, params: v2.ExperimentalFeatureEnablementSetParams | JsonObject
+    ) -> v2.ExperimentalFeatureEnablementSetResponse:
+        return self.request(
+            "experimentalFeature/enablement/set",
+            _params_dict(params),
+            response_model=v2.ExperimentalFeatureEnablementSetResponse,
+        )
+
+    def external_agent_config_detect(
+        self, params: v2.ExternalAgentConfigDetectParams | JsonObject | None = None
+    ) -> v2.ExternalAgentConfigDetectResponse:
+        return self.request(
+            "externalAgentConfig/detect",
+            _params_dict(params),
+            response_model=v2.ExternalAgentConfigDetectResponse,
+        )
+
+    def external_agent_config_import(
+        self, params: v2.ExternalAgentConfigImportParams | JsonObject
+    ) -> v2.ExternalAgentConfigImportResponse:
+        return self.request(
+            "externalAgentConfig/import",
+            _params_dict(params),
+            response_model=v2.ExternalAgentConfigImportResponse,
+        )
+
+    def external_agent_config_import_read_histories(
+        self,
+    ) -> v2.ExternalAgentConfigImportHistoriesReadResponse:
+        return self.request(
+            "externalAgentConfig/import/readHistories",
+            None,
+            response_model=v2.ExternalAgentConfigImportHistoriesReadResponse,
+        )
+
+    def model_provider_capabilities(self) -> v2.ModelProviderCapabilitiesReadResponse:
+        return self.request(
+            "modelProvider/capabilities/read",
+            None,
+            response_model=v2.ModelProviderCapabilitiesReadResponse,
+        )
+
+    def fs_read_file(self, params: v2.FsReadFileParams | JsonObject) -> v2.FsReadFileResponse:
+        return self.request(
+            "fs/readFile", _params_dict(params), response_model=v2.FsReadFileResponse
+        )
+
+    def fs_write_file(self, params: v2.FsWriteFileParams | JsonObject) -> v2.FsWriteFileResponse:
+        return self.request(
+            "fs/writeFile", _params_dict(params), response_model=v2.FsWriteFileResponse
+        )
+
+    def fs_create_directory(
+        self, params: v2.FsCreateDirectoryParams | JsonObject
+    ) -> v2.FsCreateDirectoryResponse:
+        return self.request(
+            "fs/createDirectory", _params_dict(params), response_model=v2.FsCreateDirectoryResponse
+        )
+
+    def fs_get_metadata(
+        self, params: v2.FsGetMetadataParams | JsonObject
+    ) -> v2.FsGetMetadataResponse:
+        return self.request(
+            "fs/getMetadata", _params_dict(params), response_model=v2.FsGetMetadataResponse
+        )
+
+    def fs_read_directory(
+        self, params: v2.FsReadDirectoryParams | JsonObject
+    ) -> v2.FsReadDirectoryResponse:
+        return self.request(
+            "fs/readDirectory", _params_dict(params), response_model=v2.FsReadDirectoryResponse
+        )
+
+    def fs_remove(self, params: v2.FsRemoveParams | JsonObject) -> v2.FsRemoveResponse:
+        return self.request("fs/remove", _params_dict(params), response_model=v2.FsRemoveResponse)
+
+    def fs_copy(self, params: v2.FsCopyParams | JsonObject) -> v2.FsCopyResponse:
+        return self.request("fs/copy", _params_dict(params), response_model=v2.FsCopyResponse)
+
+    def fs_watch(self, params: v2.FsWatchParams | JsonObject) -> v2.FsWatchResponse:
+        return self.request("fs/watch", _params_dict(params), response_model=v2.FsWatchResponse)
+
+    def fs_unwatch(self, params: v2.FsUnwatchParams | JsonObject) -> v2.FsUnwatchResponse:
+        return self.request("fs/unwatch", _params_dict(params), response_model=v2.FsUnwatchResponse)
+
+    def fuzzy_file_search(
+        self, params: v2.FuzzyFileSearchParams | JsonObject
+    ) -> FuzzyFileSearchResponse:
+        return self.request(
+            "fuzzyFileSearch", _params_dict(params), response_model=FuzzyFileSearchResponse
+        )
+
+    def thread_search(self, params: v2.ThreadSearchParams | JsonObject) -> v2.ThreadSearchResponse:
+        return self.request(
+            "thread/search", _params_dict(params), response_model=v2.ThreadSearchResponse
+        )
+
+    def thread_search_occurrences(
+        self, params: v2.ThreadSearchOccurrencesParams | JsonObject
+    ) -> v2.ThreadSearchOccurrencesResponse:
+        return self.request(
+            "thread/searchOccurrences",
+            _params_dict(params),
+            response_model=v2.ThreadSearchOccurrencesResponse,
+        )
+
+    def collaboration_mode_list(self) -> v2.CollaborationModeListResponse:
+        return self.request(
+            "collaborationMode/list", None, response_model=v2.CollaborationModeListResponse
+        )
+
+    def fuzzy_file_search_session_start(
+        self, params: v2.FuzzyFileSearchSessionStartParams | JsonObject
+    ) -> FuzzyFileSearchSessionStartResponse:
+        return self.request(
+            "fuzzyFileSearch/sessionStart",
+            _params_dict(params),
+            response_model=FuzzyFileSearchSessionStartResponse,
+        )
+
+    def fuzzy_file_search_session_update(
+        self, params: v2.FuzzyFileSearchSessionUpdateParams | JsonObject
+    ) -> FuzzyFileSearchSessionUpdateResponse:
+        return self.request(
+            "fuzzyFileSearch/sessionUpdate",
+            _params_dict(params),
+            response_model=FuzzyFileSearchSessionUpdateResponse,
+        )
+
+    def fuzzy_file_search_session_stop(
+        self, params: v2.FuzzyFileSearchSessionStopParams | JsonObject
+    ) -> FuzzyFileSearchSessionStopResponse:
+        return self.request(
+            "fuzzyFileSearch/sessionStop",
+            _params_dict(params),
+            response_model=FuzzyFileSearchSessionStopResponse,
+        )
+
+    def memory_reset(self) -> v2.MemoryResetResponse:
+        return self.request("memory/reset", None, response_model=v2.MemoryResetResponse)
+
+    def thread_memory_mode_set(
+        self, params: v2.ThreadMemoryModeSetParams | JsonObject
+    ) -> v2.ThreadMemoryModeSetResponse:
+        return self.request(
+            "thread/memoryMode/set",
+            _params_dict(params),
+            response_model=v2.ThreadMemoryModeSetResponse,
+        )
+
+    def thread_settings_update(
+        self, params: v2.ThreadSettingsUpdateParams | JsonObject
+    ) -> v2.ThreadSettingsUpdateResponse:
+        return self.request(
+            "thread/settings/update",
+            _params_dict(params),
+            response_model=v2.ThreadSettingsUpdateResponse,
+        )
+
+    def turn_settings_update(
+        self, params: v2.TurnSettingsUpdateParams | JsonObject
+    ) -> v2.TurnSettingsUpdateResponse:
+        return self.request(
+            "turn/settings/update",
+            _params_dict(params),
+            response_model=v2.TurnSettingsUpdateResponse,
+        )
+
+    def thread_queue_add(
+        self, params: v2.ThreadQueueAddParams | JsonObject
+    ) -> v2.ThreadQueueAddResponse:
+        return self.request(
+            "thread/queue/add", _params_dict(params), response_model=v2.ThreadQueueAddResponse
+        )
+
+    def thread_queue_list(
+        self, params: v2.ThreadQueueListParams | JsonObject
+    ) -> v2.ThreadQueueListResponse:
+        return self.request(
+            "thread/queue/list", _params_dict(params), response_model=v2.ThreadQueueListResponse
+        )
+
+    def thread_queue_update(
+        self, params: v2.ThreadQueueUpdateParams | JsonObject
+    ) -> v2.ThreadQueueUpdateResponse:
+        return self.request(
+            "thread/queue/update", _params_dict(params), response_model=v2.ThreadQueueUpdateResponse
+        )
+
+    def thread_queue_delete(
+        self, params: v2.ThreadQueueDeleteParams | JsonObject
+    ) -> v2.ThreadQueueDeleteResponse:
+        return self.request(
+            "thread/queue/delete", _params_dict(params), response_model=v2.ThreadQueueDeleteResponse
+        )
+
+    def thread_queue_reorder(
+        self, params: v2.ThreadQueueReorderParams | JsonObject
+    ) -> v2.ThreadQueueReorderResponse:
+        return self.request(
+            "thread/queue/reorder",
+            _params_dict(params),
+            response_model=v2.ThreadQueueReorderResponse,
+        )
+
+    def thread_queue_start(
+        self, params: v2.ThreadQueueStartParams | JsonObject
+    ) -> v2.ThreadQueueStartResponse:
+        return self.request(
+            "thread/queue/start", _params_dict(params), response_model=v2.ThreadQueueStartResponse
+        )
+
+    def project_list(
+        self, params: v2.ProjectListParams | JsonObject | None = None
+    ) -> v2.ProjectListResponse:
+        return self.request(
+            "project/list", _params_dict(params), response_model=v2.ProjectListResponse
+        )
+
+    def project_read(self, params: v2.ProjectReadParams | JsonObject) -> v2.ProjectReadResponse:
+        return self.request(
+            "project/read", _params_dict(params), response_model=v2.ProjectReadResponse
+        )
+
+    def project_create(
+        self, params: v2.ProjectCreateParams | JsonObject
+    ) -> v2.ProjectCreateResponse:
+        return self.request(
+            "project/create", _params_dict(params), response_model=v2.ProjectCreateResponse
+        )
+
+    def project_import(
+        self, params: v2.ProjectImportParams | JsonObject
+    ) -> v2.ProjectImportResponse:
+        return self.request(
+            "project/import", _params_dict(params), response_model=v2.ProjectImportResponse
+        )
+
+    def project_update(
+        self, params: v2.ProjectUpdateParams | JsonObject
+    ) -> v2.ProjectUpdateResponse:
+        return self.request(
+            "project/update", _params_dict(params), response_model=v2.ProjectUpdateResponse
+        )
+
+    def project_move(self, params: v2.ProjectMoveParams | JsonObject) -> v2.ProjectMoveResponse:
+        return self.request(
+            "project/move", _params_dict(params), response_model=v2.ProjectMoveResponse
+        )
+
+    def project_delete(
+        self, params: v2.ProjectDeleteParams | JsonObject
+    ) -> v2.ProjectDeleteResponse:
+        return self.request(
+            "project/delete", _params_dict(params), response_model=v2.ProjectDeleteResponse
         )
 
     def request_with_retry_on_overload(

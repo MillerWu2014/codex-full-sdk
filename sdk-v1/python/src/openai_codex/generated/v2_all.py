@@ -102,6 +102,13 @@ class AdditionalNetworkPermissions(BaseModel):
     enabled: bool | None = None
 
 
+class AgentMessageDelivery(RootModel[Literal["async"]]):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    root: Literal["async"]
+
+
 class AgentMessageDeltaNotification(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -144,6 +151,11 @@ class AgentPath(RootModel[str]):
         populate_by_name=True,
     )
     root: str
+
+
+class AllowDenyRequirement(Enum):
+    allow = "allow"
+    deny = "deny"
 
 
 class AnalyticsConfig(BaseModel):
@@ -314,6 +326,13 @@ class AppsReadParams(BaseModel):
             description="When true, include display-only public tool summaries in the returned metadata.",
         ),
     ] = None
+    thread_id: Annotated[
+        str | None,
+        Field(
+            alias="threadId",
+            description="Optional loaded thread id used to evaluate effective app configuration.",
+        ),
+    ] = None
 
 
 class AskForApprovalValue(Enum):
@@ -356,6 +375,17 @@ class AuthMode(Enum):
     agent_identity = "agentIdentity"
     personal_access_token = "personalAccessToken"
     bedrock_api_key = "bedrockApiKey"
+    bedrock_access_keys = "bedrockAccessKeys"
+
+
+class AuthRecoveryNotification(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    message: str
+    provider: str
+    thread_id: Annotated[str, Field(alias="threadId")]
+    turn_id: Annotated[str, Field(alias="turnId")]
 
 
 class AutoCompactTokenLimitScope(Enum):
@@ -375,11 +405,118 @@ class AutoReviewDecisionSource(RootModel[Literal["agent"]]):
     ]
 
 
+class AutoReviewRequirements(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    ignore_rules: Annotated[list[str] | None, Field(alias="ignoreRules")] = None
+    required_on_models: Annotated[list[str] | None, Field(alias="requiredOnModels")] = None
+
+
+class AwsCredentialType(Enum):
+    access_keys = "accessKeys"
+    bedrock_api_key = "bedrockApiKey"
+
+
+class BedrockAwsProfile(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    name: str
+    region: str | None = None
+
+
+class BedrockDiscoverParams(BaseModel):
+    pass
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+
+
+class BedrockEnvironmentCredential(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    region: str | None = None
+    type: AwsCredentialType
+
+
+class ProfileBedrockSetupParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    profile: str
+    region: str
+    type: Annotated[Literal["profile"], Field(title="Profilev2::BedrockSetupParamsType")]
+
+
+class EnvironmentBedrockSetupParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    region: str
+    type: Annotated[Literal["environment"], Field(title="Environmentv2::BedrockSetupParamsType")]
+
+
+class BedrockSetupParams(RootModel[ProfileBedrockSetupParams | EnvironmentBedrockSetupParams]):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    root: Annotated[
+        ProfileBedrockSetupParams | EnvironmentBedrockSetupParams, Field(title="BedrockSetupParams")
+    ]
+
+
+class BedrockSetupResponse(BaseModel):
+    pass
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+
+
+class BrowserUseAccessApprovalLifetime(Enum):
+    turn = "turn"
+    thread = "thread"
+
+
+class BrowserUseOriginPolicy(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    access: AllowDenyRequirement | None = None
+    access_approval_lifetime: Annotated[
+        BrowserUseAccessApprovalLifetime | None, Field(alias="accessApprovalLifetime")
+    ] = None
+    auto_review: Annotated[AllowDenyRequirement | None, Field(alias="autoReview")] = None
+    downloads: AllowDenyRequirement | None = None
+    full_cdp_access: Annotated[AllowDenyRequirement | None, Field(alias="fullCdpAccess")] = None
+    persistent_approval: Annotated[bool | None, Field(alias="persistentApproval")] = None
+    uploads: AllowDenyRequirement | None = None
+
+
+class BrowserUseOriginPolicyConfig(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    access: AllowDenyRequirement | None = None
+    downloads: AllowDenyRequirement | None = None
+    full_cdp_access: AllowDenyRequirement | None = None
+    uploads: AllowDenyRequirement | None = None
+
+
 class BrowserUseRequirements(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
+    allow_global_persistent_approval: Annotated[
+        bool | None, Field(alias="allowGlobalPersistentApproval")
+    ] = None
+    allow_history_access: Annotated[bool | None, Field(alias="allowHistoryAccess")] = None
+    default_origin_policy: Annotated[
+        BrowserUseOriginPolicy | None, Field(alias="defaultOriginPolicy")
+    ] = None
     disable_auto_review: Annotated[bool | None, Field(alias="disableAutoReview")] = None
+    origins: dict[str, Any] | None = None
 
 
 class ByteRange(BaseModel):
@@ -423,6 +560,13 @@ class CapabilityRootLocation(RootModel[EnvironmentCapabilityRootLocation]):
     ]
 
 
+class CliAuthCredentialsStoreMode(Enum):
+    file = "file"
+    keyring = "keyring"
+    auto = "auto"
+    ephemeral = "ephemeral"
+
+
 class ClientInfo(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -436,8 +580,10 @@ class CodexErrorInfoValue(Enum):
     context_window_exceeded = "contextWindowExceeded"
     session_budget_exceeded = "sessionBudgetExceeded"
     usage_limit_exceeded = "usageLimitExceeded"
+    rate_limit_exceeded = "rateLimitExceeded"
     server_overloaded = "serverOverloaded"
     cyber_policy = "cyberPolicy"
+    misalignment_policy_violation = "misalignmentPolicyViolation"
     internal_server_error = "internalServerError"
     unauthorized = "unauthorized"
     bad_request = "badRequest"
@@ -534,12 +680,24 @@ class CollabAgentTool(Enum):
     resume_agent = "resumeAgent"
     wait = "wait"
     close_agent = "closeAgent"
+    send_message = "sendMessage"
+    followup_task = "followupTask"
+    interrupt_agent = "interruptAgent"
+    list_agents = "listAgents"
 
 
 class CollabAgentToolCallStatus(Enum):
     in_progress = "inProgress"
     completed = "completed"
     failed = "failed"
+    interrupted = "interrupted"
+
+
+class CollaborationModeListParams(BaseModel):
+    pass
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
 
 
 class ListFilesCommandAction(BaseModel):
@@ -689,11 +847,58 @@ class CommandMigration(BaseModel):
     name: str
 
 
-class ComputerUseRequirements(BaseModel):
+class ComputerUseMacosConfig(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
-    allow_locked_computer_use: Annotated[bool | None, Field(alias="allowLockedComputerUse")] = None
+    bundle_ids: dict[str, Any] | None = None
+
+
+class ComputerUseMacosRequirements(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    bundle_ids: Annotated[dict[str, Any] | None, Field(alias="bundleIds")] = None
+
+
+class ComputerUseWindowsExeConfig(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    access: AllowDenyRequirement
+    binary_name: str | None = None
+    product_name: str
+    publisher_name: str
+
+
+class ComputerUseWindowsExeRequirement(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    access: AllowDenyRequirement
+    binary_name: Annotated[str | None, Field(alias="binaryName")] = None
+    product_name: Annotated[str, Field(alias="productName")]
+    publisher_name: Annotated[str, Field(alias="publisherName")]
+
+
+class ComputerUseWindowsRequirements(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    aumids: dict[str, Any] | None = None
+    exes: list[ComputerUseWindowsExeRequirement] | None = None
+
+
+class PackagedDefaultsConfigLayerSource(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    file: Annotated[
+        AbsolutePathBuf, Field(description="Path to the packaged default configuration file.")
+    ]
+    type: Annotated[
+        Literal["packagedDefaults"], Field(title="PackagedDefaultsConfigLayerSourceType")
+    ]
 
 
 class MdmConfigLayerSource(BaseModel):
@@ -791,7 +996,8 @@ class LegacyManagedConfigTomlFromMdmConfigLayerSource(BaseModel):
 
 class ConfigLayerSource(
     RootModel[
-        MdmConfigLayerSource
+        PackagedDefaultsConfigLayerSource
+        | MdmConfigLayerSource
         | SystemConfigLayerSource
         | EnterpriseManagedConfigLayerSource
         | UserConfigLayerSource
@@ -805,7 +1011,8 @@ class ConfigLayerSource(
         populate_by_name=True,
     )
     root: (
-        MdmConfigLayerSource
+        PackagedDefaultsConfigLayerSource
+        | MdmConfigLayerSource
         | SystemConfigLayerSource
         | EnterpriseManagedConfigLayerSource
         | UserConfigLayerSource
@@ -849,6 +1056,18 @@ class CommandConfiguredHookHandler(BaseModel):
     type: Annotated[Literal["command"], Field(title="CommandConfiguredHookHandlerType")]
 
 
+class McpToolConfiguredHookHandler(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    input: dict[str, Any]
+    server: str
+    status_message: Annotated[str | None, Field(alias="statusMessage")] = None
+    timeout_sec: Annotated[int | None, Field(alias="timeoutSec", ge=0)] = None
+    tool: str
+    type: Annotated[Literal["mcp_tool"], Field(title="McpToolConfiguredHookHandlerType")]
+
+
 class PromptConfiguredHookHandler(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -865,13 +1084,21 @@ class AgentConfiguredHookHandler(BaseModel):
 
 class ConfiguredHookHandler(
     RootModel[
-        CommandConfiguredHookHandler | PromptConfiguredHookHandler | AgentConfiguredHookHandler
+        CommandConfiguredHookHandler
+        | McpToolConfiguredHookHandler
+        | PromptConfiguredHookHandler
+        | AgentConfiguredHookHandler
     ]
 ):
     model_config = ConfigDict(
         populate_by_name=True,
     )
-    root: CommandConfiguredHookHandler | PromptConfiguredHookHandler | AgentConfiguredHookHandler
+    root: (
+        CommandConfiguredHookHandler
+        | McpToolConfiguredHookHandler
+        | PromptConfiguredHookHandler
+        | AgentConfiguredHookHandler
+    )
 
 
 class ConfiguredHookMatcherGroup(BaseModel):
@@ -976,6 +1203,12 @@ class CreditsSnapshot(BaseModel):
     balance: str | None = None
     has_credits: Annotated[bool, Field(alias="hasCredits")]
     unlimited: bool
+
+
+class CyberAccessProgram(Enum):
+    standard = "standard"
+    daybreak_blue = "daybreakBlue"
+    daybreak_red = "daybreakRed"
 
 
 class DeprecationNoticeNotification(BaseModel):
@@ -1095,12 +1328,89 @@ class DynamicToolSpec(RootModel[FunctionDynamicToolSpec | NamespaceDynamicToolSp
     root: FunctionDynamicToolSpec | NamespaceDynamicToolSpec
 
 
+class EnvironmentAddParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    connect_timeout_ms: Annotated[
+        int | None,
+        Field(
+            alias="connectTimeoutMs",
+            description="Optional WebSocket connection timeout. The server default applies when omitted.",
+            ge=0,
+        ),
+    ] = None
+    environment_id: Annotated[str, Field(alias="environmentId")]
+    exec_server_url: Annotated[str, Field(alias="execServerUrl")]
+
+
+class EnvironmentAddResponse(BaseModel):
+    pass
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+
+
 class EnvironmentConnectionNotification(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
     environment_id: Annotated[str, Field(alias="environmentId")]
     thread_id: Annotated[str, Field(alias="threadId")]
+
+
+class EnvironmentInfoParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    environment_id: Annotated[str, Field(alias="environmentId")]
+
+
+class EnvironmentShellInfo(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    name: Annotated[
+        str,
+        Field(
+            description="Stable shell name, for example `zsh`, `bash`, `powershell`, `sh`, or `cmd`."
+        ),
+    ]
+    path: Annotated[str, Field(description="Target-native shell executable path or command name.")]
+
+
+class EnvironmentStatusKind(Enum):
+    ready = "ready"
+    pending = "pending"
+    disconnected = "disconnected"
+    unknown = "unknown"
+
+
+class EnvironmentStatusParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    environment_id: Annotated[
+        str, Field(alias="environmentId", description="Environment id to inspect.")
+    ]
+
+
+class EnvironmentStatusResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    error: Annotated[
+        str | None,
+        Field(
+            description="Human-readable detail for `disconnected` and `unknown`; omitted for other statuses."
+        ),
+    ] = None
+    status: Annotated[
+        EnvironmentStatusKind,
+        Field(
+            description="Current status observed without starting or recovering the environment."
+        ),
+    ]
 
 
 class ExperimentalFeatureEnablementSetParams(BaseModel):
@@ -1626,6 +1936,29 @@ class FuzzyFileSearchSessionCompletedNotification(BaseModel):
     session_id: Annotated[str, Field(alias="sessionId")]
 
 
+class FuzzyFileSearchSessionStartParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    roots: list[str]
+    session_id: Annotated[str, Field(alias="sessionId")]
+
+
+class FuzzyFileSearchSessionStopParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    session_id: Annotated[str, Field(alias="sessionId")]
+
+
+class FuzzyFileSearchSessionUpdateParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    query: str
+    session_id: Annotated[str, Field(alias="sessionId")]
+
+
 class FuzzyFileSearchSessionUpdatedNotification(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -1648,14 +1981,17 @@ class GetAccountParams(BaseModel):
     ] = None
 
 
-class GetAccountTokenUsageResponse(BaseModel):
+class GetAccountTokenUsageParams(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
-    daily_usage_buckets: Annotated[
-        list[AccountTokenUsageDailyBucket] | None, Field(alias="dailyUsageBuckets")
+    thread_id: Annotated[
+        str | None,
+        Field(
+            alias="threadId",
+            description="When present, read estimated usage for this thread instead of account-wide token activity.",
+        ),
     ] = None
-    summary: AccountTokenUsageSummary
 
 
 class GitInfo(BaseModel):
@@ -1749,6 +2085,7 @@ class HookEventName(Enum):
     subagent_start = "subagentStart"
     subagent_stop = "subagentStop"
     stop = "stop"
+    interrupt = "interrupt"
 
 
 class HookExecutionMode(Enum):
@@ -1758,6 +2095,7 @@ class HookExecutionMode(Enum):
 
 class HookHandlerType(Enum):
     command = "command"
+    mcp_tool = "mcpTool"
     prompt = "prompt"
     agent = "agent"
 
@@ -1834,6 +2172,33 @@ class ImageDetail(Enum):
     low = "low"
     high = "high"
     original = "original"
+
+
+class UsageLimitExceededImageGenerationFailure(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    limit_id: Annotated[str, Field(alias="limitId")]
+    resets_at: Annotated[int | None, Field(alias="resetsAt")] = None
+    type: Annotated[
+        Literal["usageLimitExceeded"], Field(title="UsageLimitExceededImageGenerationFailureType")
+    ]
+
+
+class ImageGenerationFailure(RootModel[UsageLimitExceededImageGenerationFailure]):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    root: UsageLimitExceededImageGenerationFailure
+
+
+class InAppBrowserRequirements(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    allow_external_browser_settings_import: Annotated[
+        bool | None, Field(alias="allowExternalBrowserSettingsImport")
+    ] = None
 
 
 class InitializeCapabilities(BaseModel):
@@ -2011,6 +2376,20 @@ class AmazonBedrockLoginAccountParams(BaseModel):
     ]
 
 
+class AmazonBedrockAccessKeysLoginAccountParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    access_key_id: Annotated[str, Field(alias="accessKeyId")]
+    region: str
+    secret_access_key: Annotated[str, Field(alias="secretAccessKey")]
+    session_token: Annotated[str | None, Field(alias="sessionToken")] = None
+    type: Annotated[
+        Literal["amazonBedrockAccessKeys"],
+        Field(title="AmazonBedrockAccessKeysv2::LoginAccountParamsType"),
+    ]
+
+
 class ApiKeyLoginAccountResponse(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -2110,6 +2489,7 @@ class ManagedHooksRequirements(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
+    interrupt: Annotated[list[ConfiguredHookMatcherGroup] | None, Field(alias="Interrupt")] = []
     permission_request: Annotated[
         list[ConfiguredHookMatcherGroup], Field(alias="PermissionRequest")
     ]
@@ -2211,9 +2591,76 @@ class McpResourceReadParams(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
+    connector_id: Annotated[str | None, Field(alias="connectorId")] = None
+    origin_call_id: Annotated[
+        str | None,
+        Field(
+            alias="originCallId",
+            description="Originating MCP tool call used to select the resource's app.",
+        ),
+    ] = None
     server: str
     thread_id: Annotated[str | None, Field(alias="threadId")] = None
     uri: str
+
+
+class McpServerConnectionStatus(Enum):
+    not_started = "notStarted"
+    starting = "starting"
+    connected = "connected"
+    authentication_required = "authenticationRequired"
+    failed = "failed"
+    cancelled = "cancelled"
+    disabled = "disabled"
+
+
+class McpServerEventNotification(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    method: str
+    params: Any
+
+
+class McpServerEventStreamNotification(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    notification: McpServerEventNotification
+    subscription_id: Annotated[str, Field(alias="subscriptionId")]
+
+
+class McpServerEventStreamStartParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    field_meta: Annotated[Any | None, Field(alias="_meta")] = None
+    arguments: Any
+    name: str
+    server: str
+    subscription_id: Annotated[str, Field(alias="subscriptionId")]
+    thread_id: Annotated[str, Field(alias="threadId")]
+
+
+class McpServerEventStreamStartResponse(BaseModel):
+    pass
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+
+
+class McpServerEventStreamStopParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    subscription_id: Annotated[str, Field(alias="subscriptionId")]
+
+
+class McpServerEventStreamStopResponse(BaseModel):
+    pass
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
 
 
 class McpServerInfo(BaseModel):
@@ -2235,6 +2682,12 @@ class McpServerMigration(BaseModel):
     name: str
 
 
+class McpServerOauthClientRegistration(Enum):
+    auto = "auto"
+    cimd = "cimd"
+    dcr = "dcr"
+
+
 class McpServerOauthLoginCompletedNotification(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -2249,6 +2702,13 @@ class McpServerOauthLoginParams(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
+    client_registration: Annotated[
+        McpServerOauthClientRegistration | None,
+        Field(
+            alias="clientRegistration",
+            description="Registration strategy for this login only; omission selects automatic discovery.",
+        ),
+    ] = None
     name: str
     scopes: list[str] | None = None
     thread_id: Annotated[str | None, Field(alias="threadId")] = None
@@ -2375,6 +2835,13 @@ class MemoryCitationEntry(BaseModel):
     path: str
 
 
+class MemoryResetResponse(BaseModel):
+    pass
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+
+
 class MergeStrategy(Enum):
     replace = "replace"
     upsert = "upsert"
@@ -2383,6 +2850,27 @@ class MergeStrategy(Enum):
 class MessagePhase(Enum):
     commentary = "commentary"
     final_answer = "final_answer"
+
+
+class MisalignmentSteer(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    message: str
+
+
+class MockExperimentalMethodParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    value: Annotated[str | None, Field(description="Test-only payload field.")] = None
+
+
+class MockExperimentalMethodResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    echoed: Annotated[str | None, Field(description="Echoes the input `value`.")] = None
 
 
 class ModeKind(Enum):
@@ -2480,6 +2968,13 @@ class ModelUpgradeInfo(BaseModel):
     migration_markdown: Annotated[str | None, Field(alias="migrationMarkdown")] = None
     model: str
     model_link: Annotated[str | None, Field(alias="modelLink")] = None
+    retirement_at: Annotated[
+        int | None,
+        Field(
+            alias="retirementAt",
+            description="Informational Unix timestamp for this upgrade's scheduled retirement, if known.",
+        ),
+    ] = None
     upgrade_copy: Annotated[str | None, Field(alias="upgradeCopy")] = None
 
 
@@ -2522,6 +3017,12 @@ class MultiAgentMode(RootModel[MultiAgentModeValue | CustomMultiAgentMode]):
             description="Controls the effective multi-agent delegation instructions for a turn. `custom` means the configured mode hint defines the policy instead of a built-in policy."
         ),
     ]
+
+
+class MultiAgentVersion(Enum):
+    disabled = "disabled"
+    v1 = "v1"
+    v2 = "v2"
 
 
 class NetworkAccess(Enum):
@@ -2603,6 +3104,15 @@ class NetworkUnixSocketPermission(Enum):
 class NonSteerableTurnKind(Enum):
     review = "review"
     compact = "compact"
+
+
+class NullableGetAccountTokenUsageParams(RootModel[GetAccountTokenUsageParams | None]):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    root: Annotated[
+        GetAccountTokenUsageParams | None, Field(title="Nullable_GetAccountTokenUsageParams")
+    ]
 
 
 class PatchApplyStatus(Enum):
@@ -2710,6 +3220,8 @@ class PlanType(str, Enum):
     enterprise_cbp_usage_based = "enterprise_cbp_usage_based"
     enterprise = "enterprise"
     edu = "edu"
+    edu_plus = "edu_plus"
+    edu_pro = "edu_pro"
     unknown = "unknown"
 
     @classmethod
@@ -2751,6 +3263,13 @@ class PluginInstallParams(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
+    install_attempt_id: Annotated[
+        str | None,
+        Field(
+            alias="installAttemptId",
+            description="Client-generated identifier used to correlate one installation attempt.",
+        ),
+    ] = None
     marketplace_path: Annotated[AbsolutePathBuf | None, Field(alias="marketplacePath")] = None
     plugin_name: Annotated[str, Field(alias="pluginName")]
     remote_marketplace_name: Annotated[str | None, Field(alias="remoteMarketplaceName")] = None
@@ -3116,9 +3635,43 @@ class ProcessExitedNotification(BaseModel):
     ]
 
 
+class ProcessKillParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    process_handle: Annotated[
+        str,
+        Field(
+            alias="processHandle",
+            description="Client-supplied, connection-scoped `processHandle` from `process/spawn`.",
+        ),
+    ]
+
+
+class ProcessKillResponse(BaseModel):
+    pass
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+
+
 class ProcessOutputStream(Enum):
     stdout = "stdout"
     stderr = "stderr"
+
+
+class ProcessResizePtyResponse(BaseModel):
+    pass
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+
+
+class ProcessSpawnResponse(BaseModel):
+    pass
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
 
 
 class ProcessTerminalSize(BaseModel):
@@ -3127,6 +3680,108 @@ class ProcessTerminalSize(BaseModel):
     )
     cols: Annotated[int, Field(description="Terminal width in character cells.", ge=0)]
     rows: Annotated[int, Field(description="Terminal height in character cells.", ge=0)]
+
+
+class ProcessWriteStdinParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    close_stdin: Annotated[
+        bool | None,
+        Field(
+            alias="closeStdin", description="Close stdin after writing `deltaBase64`, if present."
+        ),
+    ] = None
+    delta_base64: Annotated[
+        str | None,
+        Field(alias="deltaBase64", description="Optional base64-encoded stdin bytes to write."),
+    ] = None
+    process_handle: Annotated[
+        str,
+        Field(
+            alias="processHandle",
+            description="Client-supplied, connection-scoped `processHandle` from `process/spawn`.",
+        ),
+    ]
+
+
+class ProcessWriteStdinResponse(BaseModel):
+    pass
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+
+
+class ProjectChangeType(Enum):
+    created = "created"
+    updated = "updated"
+    deleted = "deleted"
+
+
+class ProjectChangedNotification(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    change_type: Annotated[ProjectChangeType, Field(alias="changeType")]
+    project_id: Annotated[str, Field(alias="projectId")]
+
+
+class ProjectDeleteParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    project_id: Annotated[str, Field(alias="projectId")]
+
+
+class ProjectDeleteResponse(BaseModel):
+    pass
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+
+
+class ProjectMoveParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    before_project_id: Annotated[str | None, Field(alias="beforeProjectId")] = None
+    project_id: Annotated[str, Field(alias="projectId")]
+
+
+class ProjectMoveResponse(BaseModel):
+    pass
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+
+
+class ProjectReadParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    project_id: Annotated[str, Field(alias="projectId")]
+
+
+class ProjectRoot(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    path: AbsolutePathBuf
+
+
+class ProjectSortKey(Enum):
+    position = "position"
+    recency_at = "recencyAt"
+
+
+class ProjectUpdateParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    metadata: dict[str, Any] | None = None
+    name: str | None = None
+    project_id: Annotated[str, Field(alias="projectId")]
+    roots: list[ProjectRoot] | None = None
 
 
 class RateLimitReachedType(Enum):
@@ -3319,6 +3974,58 @@ class ReasoningTextDeltaNotification(BaseModel):
     turn_id: Annotated[str, Field(alias="turnId")]
 
 
+class RemoteControlClient(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    app_version: Annotated[str | None, Field(alias="appVersion")] = None
+    client_id: Annotated[str, Field(alias="clientId")]
+    device_model: Annotated[str | None, Field(alias="deviceModel")] = None
+    device_type: Annotated[str | None, Field(alias="deviceType")] = None
+    display_name: Annotated[str | None, Field(alias="displayName")] = None
+    last_seen_at: Annotated[int | None, Field(alias="lastSeenAt")] = None
+    os_version: Annotated[str | None, Field(alias="osVersion")] = None
+    platform: str | None = None
+
+
+class RemoteControlClientsListOrder(Enum):
+    asc = "asc"
+    desc = "desc"
+
+
+class RemoteControlClientsListParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    cursor: str | None = None
+    environment_id: Annotated[str, Field(alias="environmentId")]
+    limit: Annotated[int | None, Field(ge=0)] = None
+    order: RemoteControlClientsListOrder | None = None
+
+
+class RemoteControlClientsListResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    data: list[RemoteControlClient]
+    next_cursor: Annotated[str | None, Field(alias="nextCursor")] = None
+
+
+class RemoteControlClientsRevokeParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    client_id: Annotated[str, Field(alias="clientId")]
+    environment_id: Annotated[str, Field(alias="environmentId")]
+
+
+class RemoteControlClientsRevokeResponse(BaseModel):
+    pass
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+
+
 class RemoteControlConnectionStatus(Enum):
     disabled = "disabled"
     connecting = "connecting"
@@ -3333,6 +4040,16 @@ class RemoteControlDisableParams(BaseModel):
     ephemeral: bool | None = None
 
 
+class RemoteControlDisableResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    environment_id: Annotated[str | None, Field(alias="environmentId")] = None
+    installation_id: Annotated[str, Field(alias="installationId")]
+    server_name: Annotated[str, Field(alias="serverName")]
+    status: RemoteControlConnectionStatus
+
+
 class RemoteControlEnableParams(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -3340,7 +4057,59 @@ class RemoteControlEnableParams(BaseModel):
     ephemeral: bool | None = None
 
 
+class RemoteControlEnableResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    environment_id: Annotated[str | None, Field(alias="environmentId")] = None
+    installation_id: Annotated[str, Field(alias="installationId")]
+    server_name: Annotated[str, Field(alias="serverName")]
+    status: RemoteControlConnectionStatus
+
+
+class RemoteControlPairingStartParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    manual_code: Annotated[bool | None, Field(alias="manualCode")] = None
+
+
+class RemoteControlPairingStartResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    environment_id: Annotated[str, Field(alias="environmentId")]
+    expires_at: Annotated[int, Field(alias="expiresAt")]
+    manual_pairing_code: Annotated[str | None, Field(alias="manualPairingCode")] = None
+    pairing_code: Annotated[str, Field(alias="pairingCode")]
+
+
+class RemoteControlPairingStatusParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    manual_pairing_code: Annotated[str | None, Field(alias="manualPairingCode")] = None
+    pairing_code: Annotated[str | None, Field(alias="pairingCode")] = None
+
+
+class RemoteControlPairingStatusResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    claimed: bool
+
+
 class RemoteControlStatusChangedNotification(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    environment_id: Annotated[str | None, Field(alias="environmentId")] = None
+    installation_id: Annotated[str, Field(alias="installationId")]
+    server_name: Annotated[str, Field(alias="serverName")]
+    status: RemoteControlConnectionStatus
+
+
+class RemoteControlStatusReadResponse(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
@@ -3560,6 +4329,13 @@ class OtherResponseItem(BaseModel):
         populate_by_name=True,
     )
     type: Annotated[Literal["other"], Field(title="OtherResponseItemType")]
+
+
+class ResponseUsageMetadata(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    amount: str | None = None
 
 
 class SearchResponsesApiWebSearchAction(BaseModel):
@@ -3798,6 +4574,55 @@ class SendAddCreditsNudgeEmailResponse(BaseModel):
     status: AddCreditsNudgeEmailStatus
 
 
+class ServerDiagnosticsGauge(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    name: str
+    value: Annotated[int, Field(ge=0)]
+
+
+class ServerDiagnosticsParams(BaseModel):
+    pass
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+
+
+class ServerDiagnosticsProcess(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: Annotated[int, Field(ge=0)]
+    physical_footprint_bytes: Annotated[int | None, Field(alias="physicalFootprintBytes", ge=0)] = (
+        None
+    )
+    resident_memory_bytes: Annotated[int | None, Field(alias="residentMemoryBytes", ge=0)] = None
+
+
+class ServerDiagnosticsResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    gauges: list[ServerDiagnosticsGauge]
+    process: ServerDiagnosticsProcess
+
+
+class ProjectChangedServerNotification(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    emitted_at_ms: Annotated[
+        int | None,
+        Field(
+            alias="emittedAtMs",
+            description="Unix timestamp (in milliseconds) when app-server emitted this notification.",
+        ),
+    ] = None
+    method: Annotated[Literal["project/changed"], Field(title="Project/changedNotificationMethod")]
+    params: ProjectChangedNotification
+
+
 class ThreadEnvironmentConnectedServerNotification(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -3971,6 +4796,24 @@ class McpServerStartupStatusUpdatedServerNotification(BaseModel):
     params: McpServerStatusUpdatedNotification
 
 
+class McpServerEventStreamNotificationServerNotification(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    emitted_at_ms: Annotated[
+        int | None,
+        Field(
+            alias="emittedAtMs",
+            description="Unix timestamp (in milliseconds) when app-server emitted this notification.",
+        ),
+    ] = None
+    method: Annotated[
+        Literal["mcpServer/event/stream/notification"],
+        Field(title="McpServer/event/stream/notificationNotificationMethod"),
+    ]
+    params: McpServerEventStreamNotification
+
+
 class RemoteControlStatusChangedServerNotification(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -4105,6 +4948,42 @@ class ModelVerificationServerNotification(BaseModel):
         Literal["model/verification"], Field(title="Model/verificationNotificationMethod")
     ]
     params: ModelVerificationNotification
+
+
+class ModelProviderAuthRecoveryStartedServerNotification(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    emitted_at_ms: Annotated[
+        int | None,
+        Field(
+            alias="emittedAtMs",
+            description="Unix timestamp (in milliseconds) when app-server emitted this notification.",
+        ),
+    ] = None
+    method: Annotated[
+        Literal["modelProvider/authRecoveryStarted"],
+        Field(title="ModelProvider/authRecoveryStartedNotificationMethod"),
+    ]
+    params: AuthRecoveryNotification
+
+
+class ModelProviderAuthRecoveryCompletedServerNotification(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    emitted_at_ms: Annotated[
+        int | None,
+        Field(
+            alias="emittedAtMs",
+            description="Unix timestamp (in milliseconds) when app-server emitted this notification.",
+        ),
+    ] = None
+    method: Annotated[
+        Literal["modelProvider/authRecoveryCompleted"],
+        Field(title="ModelProvider/authRecoveryCompletedNotificationMethod"),
+    ]
+    params: AuthRecoveryNotification
 
 
 class ModelSafetyBufferingUpdatedServerNotification(BaseModel):
@@ -4370,10 +5249,26 @@ class SpendControlLimitSnapshot(BaseModel):
     used: str
 
 
+class StrictReviewRequiredNotification(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    started_at_ms: Annotated[
+        int,
+        Field(
+            alias="startedAtMs",
+            description="Unix timestamp (in milliseconds) when this review started.",
+        ),
+    ]
+    thread_id: Annotated[str, Field(alias="threadId")]
+    turn_id: Annotated[str, Field(alias="turnId")]
+
+
 class SubAgentActivityKind(Enum):
     started = "started"
     interacted = "interacted"
     interrupted = "interrupted"
+    completed = "completed"
 
 
 class SubAgentSourceValue(Enum):
@@ -4488,6 +5383,73 @@ class ThreadArchivedNotification(BaseModel):
     thread_id: Annotated[str, Field(alias="threadId")]
 
 
+class ThreadBackgroundTerminal(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    command: str
+    cpu_percent: Annotated[float | None, Field(alias="cpuPercent")] = None
+    cwd: LegacyAppPathString
+    item_id: Annotated[str, Field(alias="itemId")]
+    os_pid: Annotated[int | None, Field(alias="osPid", ge=0)] = None
+    process_id: Annotated[str, Field(alias="processId")]
+    rss_kb: Annotated[int | None, Field(alias="rssKb", ge=0)] = None
+
+
+class ThreadBackgroundTerminalsCleanParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    thread_id: Annotated[str, Field(alias="threadId")]
+
+
+class ThreadBackgroundTerminalsCleanResponse(BaseModel):
+    pass
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+
+
+class ThreadBackgroundTerminalsListParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    cursor: Annotated[
+        str | None, Field(description="Opaque pagination cursor returned by a previous call.")
+    ] = None
+    limit: Annotated[int | None, Field(description="Optional page size.", ge=0)] = None
+    thread_id: Annotated[str, Field(alias="threadId")]
+
+
+class ThreadBackgroundTerminalsListResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    data: list[ThreadBackgroundTerminal]
+    next_cursor: Annotated[
+        str | None,
+        Field(
+            alias="nextCursor",
+            description="Opaque cursor to pass to the next call to continue after the last item. If None, there are no more items to return.",
+        ),
+    ] = None
+
+
+class ThreadBackgroundTerminalsTerminateParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    process_id: Annotated[str, Field(alias="processId")]
+    thread_id: Annotated[str, Field(alias="threadId")]
+
+
+class ThreadBackgroundTerminalsTerminateResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    terminated: bool
+
+
 class ThreadClosedNotification(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -4507,6 +5469,34 @@ class ThreadCompactStartResponse(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
+
+
+class ThreadDecrementElicitationParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    thread_id: Annotated[
+        str,
+        Field(
+            alias="threadId",
+            description="Thread whose out-of-band elicitation counter should be decremented.",
+        ),
+    ]
+
+
+class ThreadDecrementElicitationResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    count: Annotated[
+        int, Field(description="Current out-of-band elicitation count after the decrement.")
+    ]
+    paused: Annotated[
+        bool,
+        Field(
+            description="Whether timeout accounting remains paused after applying the decrement."
+        ),
+    ]
 
 
 class ThreadDeleteParams(BaseModel):
@@ -4584,6 +5574,32 @@ class ThreadId(RootModel[str]):
         populate_by_name=True,
     )
     root: str
+
+
+class ThreadIncrementElicitationParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    thread_id: Annotated[
+        str,
+        Field(
+            alias="threadId",
+            description="Thread whose out-of-band elicitation counter should be incremented.",
+        ),
+    ]
+
+
+class ThreadIncrementElicitationResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    count: Annotated[
+        int, Field(description="Current out-of-band elicitation count after the increment.")
+    ]
+    paused: Annotated[
+        bool,
+        Field(description="Whether timeout accounting is paused after applying the increment."),
+    ]
 
 
 class ThreadInjectItemsParams(BaseModel):
@@ -4717,6 +5733,7 @@ class ImageGenerationThreadItem(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
+    failure: ImageGenerationFailure | None = None
     id: str
     result: str
     revised_prompt: Annotated[str | None, Field(alias="revisedPrompt")] = None
@@ -4750,6 +5767,34 @@ class ContextCompactionThreadItem(BaseModel):
     )
     id: str
     type: Annotated[Literal["contextCompaction"], Field(title="ContextCompactionThreadItemType")]
+
+
+class ThreadItemsListParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    cursor: Annotated[
+        str | None,
+        Field(
+            description="Opaque cursor to pass to the next call to continue after the last item."
+        ),
+    ] = None
+    limit: Annotated[int | None, Field(description="Optional item page size.", ge=0)] = None
+    sort_direction: Annotated[
+        SortDirection | None,
+        Field(
+            alias="sortDirection",
+            description="Optional item pagination direction; defaults to ascending.",
+        ),
+    ] = None
+    thread_id: Annotated[str, Field(alias="threadId")]
+    turn_id: Annotated[
+        str | None,
+        Field(
+            alias="turnId",
+            description="Optional turn id to filter by. When omitted, returns items across the thread.",
+        ),
+    ] = None
 
 
 class ThreadListCwdFilter(RootModel[str | list[str]]):
@@ -4792,6 +5837,21 @@ class ThreadMemoryMode(Enum):
     disabled = "disabled"
 
 
+class ThreadMemoryModeSetParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    mode: ThreadMemoryMode
+    thread_id: Annotated[str, Field(alias="threadId")]
+
+
+class ThreadMemoryModeSetResponse(BaseModel):
+    pass
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+
+
 class ThreadMetadataGitInfoUpdateParams(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -4828,6 +5888,13 @@ class ThreadMetadataUpdateParams(BaseModel):
             description="Patch the stored Git metadata for this thread. Omit a field to leave it unchanged, set it to `null` to clear it, or provide a string to replace the stored value.",
         ),
     ] = None
+    project_id: Annotated[
+        str | None,
+        Field(
+            alias="projectId",
+            description="Omit to leave the project unchanged, use an empty string to clear it, or provide an existing project ID to assign it.",
+        ),
+    ] = None
     thread_id: Annotated[str, Field(alias="threadId")]
 
 
@@ -4839,6 +5906,75 @@ class ThreadNameUpdatedNotification(BaseModel):
     thread_name: Annotated[str | None, Field(alias="threadName")] = None
 
 
+class ThreadProjectUpdatedNotification(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    project_id: Annotated[str | None, Field(alias="projectId")] = None
+    thread_id: Annotated[str, Field(alias="threadId")]
+
+
+class ThreadQueueChangedNotification(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    thread_id: Annotated[str, Field(alias="threadId")]
+
+
+class ThreadQueueDeleteParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    queued_submission_id: Annotated[str, Field(alias="queuedSubmissionId")]
+    thread_id: Annotated[str, Field(alias="threadId")]
+
+
+class ThreadQueueDeleteResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    deleted: bool
+
+
+class ThreadQueueListParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    cursor: Annotated[
+        str | None, Field(description="Opaque pagination cursor returned by a previous call.")
+    ] = None
+    limit: Annotated[
+        int | None,
+        Field(
+            description="Optional page size; defaults to the standard thread-list page size.", ge=0
+        ),
+    ] = None
+    thread_id: Annotated[str, Field(alias="threadId")]
+
+
+class ThreadQueueReorderParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    queued_submission_ids: Annotated[list[str], Field(alias="queuedSubmissionIds")]
+    thread_id: Annotated[str, Field(alias="threadId")]
+
+
+class ThreadQueueReorderResponse(BaseModel):
+    pass
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+
+
+class ThreadQueueStartParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    queued_submission_id: Annotated[str | None, Field(alias="queuedSubmissionId")] = None
+    thread_id: Annotated[str, Field(alias="threadId")]
+
+
 class ThreadReadParams(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -4847,10 +5983,48 @@ class ThreadReadParams(BaseModel):
         bool | None,
         Field(
             alias="includeTurns",
-            description="When true, include turns and their items from rollout history.",
+            description="When true, include turns and their items from rollout history. Full-history hydration is deprecated for paginated threads; prefer a metadata-only read and page with `thread/turns/list` and `thread/items/list`.",
         ),
     ] = None
     thread_id: Annotated[str, Field(alias="threadId")]
+
+
+class ThreadRealtimeAppendAudioResponse(BaseModel):
+    pass
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+
+
+class ThreadRealtimeAppendSpeechParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    text: str
+    thread_id: Annotated[str, Field(alias="threadId")]
+
+
+class ThreadRealtimeAppendSpeechResponse(BaseModel):
+    pass
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+
+
+class ThreadRealtimeAppendTextParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    role: ConversationTextRole | None = "user"
+    text: str
+    thread_id: Annotated[str, Field(alias="threadId")]
+
+
+class ThreadRealtimeAppendTextResponse(BaseModel):
+    pass
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
 
 
 class ThreadRealtimeAudioChunk(BaseModel):
@@ -4862,6 +6036,56 @@ class ThreadRealtimeAudioChunk(BaseModel):
     num_channels: Annotated[int, Field(alias="numChannels", ge=0)]
     sample_rate: Annotated[int, Field(alias="sampleRate", ge=0)]
     samples_per_channel: Annotated[int | None, Field(alias="samplesPerChannel", ge=0)] = None
+
+
+class WholeItemThreadRealtimeBemItemPresentation(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    type: Annotated[
+        Literal["wholeItem"], Field(title="WholeItemThreadRealtimeBemItemPresentationType")
+    ]
+
+
+class InlineMarkdownThreadRealtimeBemItemPresentation(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    type: Annotated[
+        Literal["inlineMarkdown"],
+        Field(title="InlineMarkdownThreadRealtimeBemItemPresentationType"),
+    ]
+
+
+class InlineVisualizationThreadRealtimeBemItemPresentation(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    index: Annotated[int, Field(ge=0)]
+    type: Annotated[
+        Literal["inlineVisualization"],
+        Field(title="InlineVisualizationThreadRealtimeBemItemPresentationType"),
+    ]
+
+
+class ThreadRealtimeBemItemPresentation(
+    RootModel[
+        WholeItemThreadRealtimeBemItemPresentation
+        | InlineMarkdownThreadRealtimeBemItemPresentation
+        | InlineVisualizationThreadRealtimeBemItemPresentation
+    ]
+):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    root: Annotated[
+        WholeItemThreadRealtimeBemItemPresentation
+        | InlineMarkdownThreadRealtimeBemItemPresentation
+        | InlineVisualizationThreadRealtimeBemItemPresentation,
+        Field(
+            description="EXPERIMENTAL - how an existing agent item appears in a realtime conversation."
+        ),
+    ]
 
 
 class ThreadRealtimeClosedNotification(BaseModel):
@@ -4888,12 +6112,61 @@ class ThreadRealtimeInitialItem(BaseModel):
     text: str
 
 
+class RealtimeSessionStartedThreadRealtimeItem(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: str
+    realtime_session_id: Annotated[str, Field(alias="realtimeSessionId")]
+    type: Annotated[
+        Literal["realtimeSessionStarted"],
+        Field(title="RealtimeSessionStartedThreadRealtimeItemType"),
+    ]
+
+
+class BemItemPromotedThreadRealtimeItem(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: str
+    realtime_session_id: Annotated[str, Field(alias="realtimeSessionId")]
+    item_id: str
+    presentation: ThreadRealtimeBemItemPresentation
+    turn_id: str
+    type: Annotated[
+        Literal["bemItemPromoted"], Field(title="BemItemPromotedThreadRealtimeItemType")
+    ]
+
+
 class ThreadRealtimeItemAddedNotification(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
     item: Any
     thread_id: Annotated[str, Field(alias="threadId")]
+
+
+class ThreadRealtimeItemTranscriptDeltaNotification(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    delta: str
+    item_id: Annotated[str, Field(alias="itemId")]
+    thread_id: Annotated[str, Field(alias="threadId")]
+
+
+class ThreadRealtimeListVoicesParams(BaseModel):
+    pass
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+
+
+class ThreadRealtimeListVoicesResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    voices: RealtimeVoicesList
 
 
 class ThreadRealtimeOutputAudioDeltaNotification(BaseModel):
@@ -4910,6 +6183,18 @@ class ThreadRealtimeSdpNotification(BaseModel):
     )
     sdp: str
     thread_id: Annotated[str, Field(alias="threadId")]
+
+
+class ThreadRealtimeSessionOutcome(Enum):
+    ended = "ended"
+    failed = "failed"
+
+
+class ThreadRealtimeStartResponse(BaseModel):
+    pass
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
 
 
 class WebsocketThreadRealtimeStartTransport(BaseModel):
@@ -4932,14 +6217,36 @@ class WebrtcThreadRealtimeStartTransport(BaseModel):
     type: Annotated[Literal["webrtc"], Field(title="WebrtcThreadRealtimeStartTransportType")]
 
 
+class ExistingCallThreadRealtimeStartTransport(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    call_id: Annotated[
+        str,
+        Field(
+            alias="callId",
+            description="Identifier of a realtime call already created and negotiated by the client.",
+        ),
+    ]
+    type: Annotated[
+        Literal["existingCall"], Field(title="ExistingCallThreadRealtimeStartTransportType")
+    ]
+
+
 class ThreadRealtimeStartTransport(
-    RootModel[WebsocketThreadRealtimeStartTransport | WebrtcThreadRealtimeStartTransport]
+    RootModel[
+        WebsocketThreadRealtimeStartTransport
+        | WebrtcThreadRealtimeStartTransport
+        | ExistingCallThreadRealtimeStartTransport
+    ]
 ):
     model_config = ConfigDict(
         populate_by_name=True,
     )
     root: Annotated[
-        WebsocketThreadRealtimeStartTransport | WebrtcThreadRealtimeStartTransport,
+        WebsocketThreadRealtimeStartTransport
+        | WebrtcThreadRealtimeStartTransport
+        | ExistingCallThreadRealtimeStartTransport,
         Field(description="EXPERIMENTAL - transport used by thread realtime."),
     ]
 
@@ -4951,6 +6258,20 @@ class ThreadRealtimeStartedNotification(BaseModel):
     realtime_session_id: Annotated[str | None, Field(alias="realtimeSessionId")] = None
     thread_id: Annotated[str, Field(alias="threadId")]
     version: RealtimeConversationVersion
+
+
+class ThreadRealtimeStopParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    thread_id: Annotated[str, Field(alias="threadId")]
+
+
+class ThreadRealtimeStopResponse(BaseModel):
+    pass
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
 
 
 class ThreadRealtimeTranscriptDeltaNotification(BaseModel):
@@ -4971,29 +6292,29 @@ class ThreadRealtimeTranscriptDoneNotification(BaseModel):
     thread_id: Annotated[str, Field(alias="threadId")]
 
 
-class ThreadResumeParams(BaseModel):
+class ThreadRealtimeTranscriptRole(Enum):
+    user = "user"
+    assistant = "assistant"
+
+
+class ThreadRevertParams(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
-    approval_policy: Annotated[AskForApproval | None, Field(alias="approvalPolicy")] = None
-    approvals_reviewer: Annotated[
-        ApprovalsReviewer | None,
+    before_turn_id: Annotated[
+        str,
         Field(
-            alias="approvalsReviewer",
-            description="Override where approval requests are routed for review on this thread and subsequent turns.",
+            alias="beforeTurnId",
+            description="Turn excluded from the replacement history, together with every later turn.",
         ),
-    ] = None
-    base_instructions: Annotated[str | None, Field(alias="baseInstructions")] = None
-    config: dict[str, Any] | None = None
-    cwd: str | None = None
-    developer_instructions: Annotated[str | None, Field(alias="developerInstructions")] = None
-    model: Annotated[
-        str | None, Field(description="Configuration overrides for the resumed thread, if any.")
-    ] = None
-    model_provider: Annotated[str | None, Field(alias="modelProvider")] = None
-    personality: Personality | None = None
-    sandbox: SandboxMode | None = None
-    service_tier: Annotated[str | None, Field(alias="serviceTier")] = None
+    ]
+    thread_id: Annotated[str, Field(alias="threadId")]
+
+
+class ThreadRevertedNotification(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
     thread_id: Annotated[str, Field(alias="threadId")]
 
 
@@ -5012,37 +6333,55 @@ class ThreadRollbackParams(BaseModel):
     thread_id: Annotated[str, Field(alias="threadId")]
 
 
+class ThreadSearchOccurrencesParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    cursor: Annotated[
+        str | None,
+        Field(
+            description="Opaque cursor returned by a previous call for the same thread and search term."
+        ),
+    ] = None
+    limit: Annotated[int | None, Field(description="Optional occurrence page size.", ge=0)] = None
+    search_term: Annotated[
+        str,
+        Field(
+            alias="searchTerm",
+            description="Case-insensitive literal substring to find in visible user messages and final assistant messages.",
+        ),
+    ]
+    thread_id: Annotated[str, Field(alias="threadId")]
+
+
 class ThreadSearchSortKey(Enum):
     created_at = "created_at"
     updated_at = "updated_at"
     recency_at = "recency_at"
 
 
-class ThreadSection(BaseModel):
+class ThreadSearchTextRange(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
-    id: Annotated[
-        str,
-        Field(
-            description="Opaque UUIDv7 identity that remains stable when the section is renamed."
-        ),
-    ]
-    name: Annotated[str, Field(description="The current user-visible section name.")]
+    end: Annotated[int, Field(description="Exclusive UTF-16 code-unit offset.", ge=0)]
+    start: Annotated[int, Field(description="Inclusive UTF-16 code-unit offset.", ge=0)]
+
+
+class ThreadSectionAppearance(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    color: str | None = None
+    icon: str | None = None
 
 
 class ThreadSectionCreateParams(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
+    appearance: ThreadSectionAppearance | None = None
     name: Annotated[str, Field(description="The user-visible name of the section.")]
-
-
-class ThreadSectionCreateResponse(BaseModel):
-    model_config = ConfigDict(
-        populate_by_name=True,
-    )
-    section: ThreadSection
 
 
 class ThreadSectionDeleteParams(BaseModel):
@@ -5074,20 +6413,6 @@ class ThreadSectionListParams(BaseModel):
     ] = None
     limit: Annotated[
         int | None, Field(description="Maximum number of sections to return.", ge=0)
-    ] = None
-
-
-class ThreadSectionListResponse(BaseModel):
-    model_config = ConfigDict(
-        populate_by_name=True,
-    )
-    data: list[ThreadSection]
-    next_cursor: Annotated[
-        str | None,
-        Field(
-            alias="nextCursor",
-            description="Opaque cursor for the next page, or `null` when no sections remain.",
-        ),
     ] = None
 
 
@@ -5126,6 +6451,12 @@ class ThreadSectionUpdateParams(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
+    appearance: Annotated[
+        ThreadSectionAppearance | None,
+        Field(
+            description="Omit to preserve appearance, use `null` to clear it, or provide a replacement."
+        ),
+    ] = None
     name: Annotated[str, Field(description="The updated user-visible name of the section.")]
     section_id: Annotated[
         str,
@@ -5134,13 +6465,6 @@ class ThreadSectionUpdateParams(BaseModel):
             description="The stable, server-generated identity of the section to update.",
         ),
     ]
-
-
-class ThreadSectionUpdateResponse(BaseModel):
-    model_config = ConfigDict(
-        populate_by_name=True,
-    )
-    section: ThreadSection
 
 
 class ThreadSetNameParams(BaseModel):
@@ -5158,6 +6482,13 @@ class ThreadSetNameResponse(BaseModel):
     )
 
 
+class ThreadSettingsUpdateResponse(BaseModel):
+    pass
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+
+
 class ThreadShellCommandParams(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -5169,6 +6500,13 @@ class ThreadShellCommandParams(BaseModel):
         ),
     ]
     thread_id: Annotated[str, Field(alias="threadId")]
+    timeout_ms: Annotated[
+        int | None,
+        Field(
+            alias="timeoutMs",
+            description="Maximum execution time in milliseconds. Defaults to one hour when omitted or null. Must be non-negative; zero requests an immediate timeout, not unlimited execution. Does not affect the immediate RPC acknowledgement.",
+        ),
+    ] = None
 
 
 class ThreadShellCommandResponse(BaseModel):
@@ -5266,6 +6604,25 @@ class ThreadStatusChangedNotification(BaseModel):
     thread_id: Annotated[str, Field(alias="threadId")]
 
 
+class TurnStartedThreadTimelineEntry(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    position: Annotated[int, Field(ge=0)]
+    started_at: int | None = None
+    turn_id: str
+    type: Annotated[Literal["turnStarted"], Field(title="TurnStartedThreadTimelineEntryType")]
+
+
+class ThreadTimelineListParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    cursor: str | None = None
+    limit: Annotated[int | None, Field(ge=0)] = None
+    thread_id: Annotated[str, Field(alias="threadId")]
+
+
 class ThreadUnarchiveParams(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -5291,6 +6648,21 @@ class ThreadUnsubscribeStatus(Enum):
     not_loaded = "notLoaded"
     not_subscribed = "notSubscribed"
     unsubscribed = "unsubscribed"
+
+
+class ThreadUsageBreakdownGroup(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    cached_input_tokens: Annotated[int | None, Field(alias="cachedInputTokens")] = None
+    estimated_usage_credits_micros: Annotated[int, Field(alias="estimatedUsageCreditsMicros")]
+    input_tokens: Annotated[int | None, Field(alias="inputTokens")] = None
+    model: str | None = None
+    net_new_input_tokens: Annotated[int | None, Field(alias="netNewInputTokens")] = None
+    output_tokens: Annotated[int | None, Field(alias="outputTokens")] = None
+    reasoning_effort: Annotated[str | None, Field(alias="reasoningEffort")] = None
+    speed: str | None = None
+    total_tokens: Annotated[int | None, Field(alias="totalTokens")] = None
 
 
 class TokenUsageBreakdown(BaseModel):
@@ -5377,6 +6749,37 @@ class TurnPlanStepStatus(Enum):
     pending = "pending"
     in_progress = "inProgress"
     completed = "completed"
+
+
+class TurnSettingsUpdateParams(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True,
+    )
+    effort: Annotated[
+        ReasoningEffort | None, Field(description="Omission or `null` leaves the effort unchanged.")
+    ] = None
+    model: Annotated[
+        str | None, Field(description="Omission or `null` leaves the model unchanged.")
+    ] = None
+    service_tier: Annotated[
+        str | None,
+        Field(
+            alias="serviceTier",
+            description="`null` clears the requested tier; omission leaves it unchanged.",
+        ),
+    ] = None
+    summary: Annotated[
+        ReasoningSummary | None,
+        Field(description="Omission or `null` leaves the summary preference unchanged."),
+    ] = None
+    thread_id: Annotated[str, Field(alias="threadId")]
+    turn_id: Annotated[str, Field(alias="turnId")]
+
+
+class TurnSettingsUpdateStatus(Enum):
+    applied = "applied"
+    target_unavailable = "targetUnavailable"
 
 
 class TurnStatus(Enum):
@@ -5758,6 +7161,25 @@ class AppsReadResponse(BaseModel):
     missing_app_ids: Annotated[list[str], Field(alias="missingAppIds")]
 
 
+class BedrockDiscoverResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    environment_credentials: Annotated[
+        list[BedrockEnvironmentCredential], Field(alias="environmentCredentials")
+    ]
+    profiles: list[BedrockAwsProfile]
+
+
+class BrowserUseConfig(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    allow_history_access: bool | None = None
+    default_origin_policy: BrowserUseOriginPolicyConfig | None = None
+    origins: dict[str, Any] | None = None
+
+
 class CancelLoginAccountResponse(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -5774,13 +7196,13 @@ class InitializeRequest(BaseModel):
     params: InitializeParams
 
 
-class ThreadResumeRequest(BaseModel):
+class ServerDiagnosticsRequest(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
     id: RequestId
-    method: Annotated[Literal["thread/resume"], Field(title="Thread/resumeRequestMethod")]
-    params: ThreadResumeParams
+    method: Annotated[Literal["server/diagnostics"], Field(title="Server/diagnosticsRequestMethod")]
+    params: ServerDiagnosticsParams
 
 
 class ThreadArchiveRequest(BaseModel):
@@ -5810,6 +7232,30 @@ class ThreadUnsubscribeRequest(BaseModel):
     params: ThreadUnsubscribeParams
 
 
+class ThreadIncrementElicitationRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["thread/increment_elicitation"],
+        Field(title="Thread/incrementElicitationRequestMethod"),
+    ]
+    params: ThreadIncrementElicitationParams
+
+
+class ThreadDecrementElicitationRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["thread/decrement_elicitation"],
+        Field(title="Thread/decrementElicitationRequestMethod"),
+    ]
+    params: ThreadDecrementElicitationParams
+
+
 class ThreadNameSetRequest(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -5837,6 +7283,46 @@ class ThreadGoalClearRequest(BaseModel):
     params: ThreadGoalClearParams
 
 
+class ThreadQueueListRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[Literal["thread/queue/list"], Field(title="Thread/queue/listRequestMethod")]
+    params: ThreadQueueListParams
+
+
+class ThreadQueueDeleteRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["thread/queue/delete"], Field(title="Thread/queue/deleteRequestMethod")
+    ]
+    params: ThreadQueueDeleteParams
+
+
+class ThreadQueueReorderRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["thread/queue/reorder"], Field(title="Thread/queue/reorderRequestMethod")
+    ]
+    params: ThreadQueueReorderParams
+
+
+class ThreadQueueStartRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[Literal["thread/queue/start"], Field(title="Thread/queue/startRequestMethod")]
+    params: ThreadQueueStartParams
+
+
 class ThreadMetadataUpdateRequest(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -5857,6 +7343,26 @@ class ThreadSectionMoveRequest(BaseModel):
         Literal["thread/section/move"], Field(title="Thread/section/moveRequestMethod")
     ]
     params: ThreadSectionMoveParams
+
+
+class ThreadMemoryModeSetRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["thread/memoryMode/set"], Field(title="Thread/memoryMode/setRequestMethod")
+    ]
+    params: ThreadMemoryModeSetParams
+
+
+class MemoryResetRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[Literal["memory/reset"], Field(title="Memory/resetRequestMethod")]
+    params: None = None
 
 
 class ThreadUnarchiveRequest(BaseModel):
@@ -5902,6 +7408,42 @@ class ThreadApproveGuardianDeniedActionRequest(BaseModel):
     params: ThreadApproveGuardianDeniedActionParams
 
 
+class ThreadBackgroundTerminalsCleanRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["thread/backgroundTerminals/clean"],
+        Field(title="Thread/backgroundTerminals/cleanRequestMethod"),
+    ]
+    params: ThreadBackgroundTerminalsCleanParams
+
+
+class ThreadBackgroundTerminalsListRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["thread/backgroundTerminals/list"],
+        Field(title="Thread/backgroundTerminals/listRequestMethod"),
+    ]
+    params: ThreadBackgroundTerminalsListParams
+
+
+class ThreadBackgroundTerminalsTerminateRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["thread/backgroundTerminals/terminate"],
+        Field(title="Thread/backgroundTerminals/terminateRequestMethod"),
+    ]
+    params: ThreadBackgroundTerminalsTerminateParams
+
+
 class ThreadRollbackRequest(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -5909,6 +7451,51 @@ class ThreadRollbackRequest(BaseModel):
     id: RequestId
     method: Annotated[Literal["thread/rollback"], Field(title="Thread/rollbackRequestMethod")]
     params: ThreadRollbackParams
+
+
+class ThreadRevertRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[Literal["thread/revert"], Field(title="Thread/revertRequestMethod")]
+    params: ThreadRevertParams
+
+
+class ProjectReadRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[Literal["project/read"], Field(title="Project/readRequestMethod")]
+    params: ProjectReadParams
+
+
+class ProjectUpdateRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[Literal["project/update"], Field(title="Project/updateRequestMethod")]
+    params: ProjectUpdateParams
+
+
+class ProjectMoveRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[Literal["project/move"], Field(title="Project/moveRequestMethod")]
+    params: ProjectMoveParams
+
+
+class ProjectDeleteRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[Literal["project/delete"], Field(title="Project/deleteRequestMethod")]
+    params: ProjectDeleteParams
 
 
 class ThreadSectionListRequest(BaseModel):
@@ -5953,6 +7540,17 @@ class ThreadSectionDeleteRequest(BaseModel):
     params: ThreadSectionDeleteParams
 
 
+class ThreadSearchOccurrencesRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["thread/searchOccurrences"], Field(title="Thread/searchOccurrencesRequestMethod")
+    ]
+    params: ThreadSearchOccurrencesParams
+
+
 class ThreadLoadedListRequest(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -5969,6 +7567,15 @@ class ThreadReadRequest(BaseModel):
     id: RequestId
     method: Annotated[Literal["thread/read"], Field(title="Thread/readRequestMethod")]
     params: ThreadReadParams
+
+
+class ThreadItemsListRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[Literal["thread/items/list"], Field(title="Thread/items/listRequestMethod")]
+    params: ThreadItemsListParams
 
 
 class ThreadInjectItemsRequest(BaseModel):
@@ -6244,6 +7851,17 @@ class PluginUninstallRequest(BaseModel):
     params: PluginUninstallParams
 
 
+class TurnSettingsUpdateRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["turn/settings/update"], Field(title="Turn/settings/updateRequestMethod")
+    ]
+    params: TurnSettingsUpdateParams
+
+
 class TurnInterruptRequest(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -6251,6 +7869,64 @@ class TurnInterruptRequest(BaseModel):
     id: RequestId
     method: Annotated[Literal["turn/interrupt"], Field(title="Turn/interruptRequestMethod")]
     params: TurnInterruptParams
+
+
+class ThreadRealtimeAppendTextRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["thread/realtime/appendText"],
+        Field(title="Thread/realtime/appendTextRequestMethod"),
+    ]
+    params: ThreadRealtimeAppendTextParams
+
+
+class ThreadRealtimeAppendSpeechRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["thread/realtime/appendSpeech"],
+        Field(title="Thread/realtime/appendSpeechRequestMethod"),
+    ]
+    params: ThreadRealtimeAppendSpeechParams
+
+
+class ThreadRealtimeStopRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["thread/realtime/stop"], Field(title="Thread/realtime/stopRequestMethod")
+    ]
+    params: ThreadRealtimeStopParams
+
+
+class ThreadTimelineListRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["thread/timeline/list"], Field(title="Thread/timeline/listRequestMethod")
+    ]
+    params: ThreadTimelineListParams
+
+
+class ThreadRealtimeListVoicesRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["thread/realtime/listVoices"],
+        Field(title="Thread/realtime/listVoicesRequestMethod"),
+    ]
+    params: ThreadRealtimeListVoicesParams
 
 
 class ModelListRequest(BaseModel):
@@ -6308,6 +7984,135 @@ class ExperimentalFeatureEnablementSetRequest(BaseModel):
     params: ExperimentalFeatureEnablementSetParams
 
 
+class RemoteControlEnableRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["remoteControl/enable"], Field(title="RemoteControl/enableRequestMethod")
+    ]
+    params: RemoteControlEnableParams | None = None
+
+
+class RemoteControlDisableRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["remoteControl/disable"], Field(title="RemoteControl/disableRequestMethod")
+    ]
+    params: RemoteControlDisableParams | None = None
+
+
+class RemoteControlStatusReadRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["remoteControl/status/read"], Field(title="RemoteControl/status/readRequestMethod")
+    ]
+    params: None = None
+
+
+class RemoteControlPairingStartRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["remoteControl/pairing/start"],
+        Field(title="RemoteControl/pairing/startRequestMethod"),
+    ]
+    params: RemoteControlPairingStartParams
+
+
+class RemoteControlPairingStatusRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["remoteControl/pairing/status"],
+        Field(title="RemoteControl/pairing/statusRequestMethod"),
+    ]
+    params: RemoteControlPairingStatusParams
+
+
+class RemoteControlClientListRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["remoteControl/client/list"], Field(title="RemoteControl/client/listRequestMethod")
+    ]
+    params: RemoteControlClientsListParams
+
+
+class RemoteControlClientRevokeRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["remoteControl/client/revoke"],
+        Field(title="RemoteControl/client/revokeRequestMethod"),
+    ]
+    params: RemoteControlClientsRevokeParams
+
+
+class CollaborationModeListRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["collaborationMode/list"], Field(title="CollaborationMode/listRequestMethod")
+    ]
+    params: CollaborationModeListParams
+
+
+class MockExperimentalMethodRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["mock/experimentalMethod"], Field(title="Mock/experimentalMethodRequestMethod")
+    ]
+    params: MockExperimentalMethodParams
+
+
+class EnvironmentAddRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[Literal["environment/add"], Field(title="Environment/addRequestMethod")]
+    params: EnvironmentAddParams
+
+
+class EnvironmentInfoRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[Literal["environment/info"], Field(title="Environment/infoRequestMethod")]
+    params: EnvironmentInfoParams
+
+
+class EnvironmentStatusRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[Literal["environment/status"], Field(title="Environment/statusRequestMethod")]
+    params: EnvironmentStatusParams
+
+
 class McpServerOauthLoginRequest(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -6341,6 +8146,30 @@ class McpServerResourceReadRequest(BaseModel):
     params: McpResourceReadParams
 
 
+class McpServerEventStreamStartRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["mcpServer/event/stream/start"],
+        Field(title="McpServer/event/stream/startRequestMethod"),
+    ]
+    params: McpServerEventStreamStartParams
+
+
+class McpServerEventStreamStopRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["mcpServer/event/stream/stop"],
+        Field(title="McpServer/event/stream/stopRequestMethod"),
+    ]
+    params: McpServerEventStreamStopParams
+
+
 class McpServerToolCallRequest(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -6372,6 +8201,28 @@ class WindowsSandboxReadinessRequest(BaseModel):
         Literal["windowsSandbox/readiness"], Field(title="WindowsSandbox/readinessRequestMethod")
     ]
     params: None = None
+
+
+class AccountBedrockDiscoverRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["account/bedrock/discover"], Field(title="Account/bedrock/discoverRequestMethod")
+    ]
+    params: BedrockDiscoverParams
+
+
+class AccountBedrockSetupRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["account/bedrock/setup"], Field(title="Account/bedrock/setupRequestMethod")
+    ]
+    params: BedrockSetupParams
 
 
 class AccountLoginCancelRequest(BaseModel):
@@ -6423,7 +8274,7 @@ class AccountUsageReadRequest(BaseModel):
     )
     id: RequestId
     method: Annotated[Literal["account/usage/read"], Field(title="Account/usage/readRequestMethod")]
-    params: None = None
+    params: GetAccountTokenUsageParams | None = None
 
 
 class AccountWorkspaceMessagesReadRequest(BaseModel):
@@ -6477,6 +8328,24 @@ class CommandExecTerminateRequest(BaseModel):
         Literal["command/exec/terminate"], Field(title="Command/exec/terminateRequestMethod")
     ]
     params: CommandExecTerminateParams
+
+
+class ProcessWriteStdinRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[Literal["process/writeStdin"], Field(title="Process/writeStdinRequestMethod")]
+    params: ProcessWriteStdinParams
+
+
+class ProcessKillRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[Literal["process/kill"], Field(title="Process/killRequestMethod")]
+    params: ProcessKillParams
 
 
 class ConfigReadRequest(BaseModel):
@@ -6539,6 +8408,42 @@ class FuzzyFileSearchRequest(BaseModel):
     id: RequestId
     method: Annotated[Literal["fuzzyFileSearch"], Field(title="FuzzyFileSearchRequestMethod")]
     params: FuzzyFileSearchParams
+
+
+class FuzzyFileSearchSessionStartRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["fuzzyFileSearch/sessionStart"],
+        Field(title="FuzzyFileSearch/sessionStartRequestMethod"),
+    ]
+    params: FuzzyFileSearchSessionStartParams
+
+
+class FuzzyFileSearchSessionUpdateRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["fuzzyFileSearch/sessionUpdate"],
+        Field(title="FuzzyFileSearch/sessionUpdateRequestMethod"),
+    ]
+    params: FuzzyFileSearchSessionUpdateParams
+
+
+class FuzzyFileSearchSessionStopRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["fuzzyFileSearch/sessionStop"],
+        Field(title="FuzzyFileSearch/sessionStopRequestMethod"),
+    ]
+    params: FuzzyFileSearchSessionStopParams
 
 
 class ActiveTurnNotSteerable(BaseModel):
@@ -6693,6 +8598,13 @@ class CommandExecParams(BaseModel):
             ge=0,
         ),
     ] = None
+    permission_profile: Annotated[
+        str | None,
+        Field(
+            alias="permissionProfile",
+            description="Optional active permissions profile id for this command.\n\nDefaults to the user's configured permissions when omitted. Cannot be combined with `sandboxPolicy`.",
+        ),
+    ] = None
     process_id: Annotated[
         str | None,
         Field(
@@ -6754,6 +8666,27 @@ class CommandExecResizeParams(BaseModel):
         ),
     ]
     size: Annotated[CommandExecTerminalSize, Field(description="New PTY size in character cells.")]
+
+
+class ComputerUseRequirements(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    allow_locked_computer_use: Annotated[bool | None, Field(alias="allowLockedComputerUse")] = None
+    allow_persistent_approval: Annotated[bool | None, Field(alias="allowPersistentApproval")] = None
+    default_app_access: Annotated[AllowDenyRequirement | None, Field(alias="defaultAppAccess")] = (
+        None
+    )
+    macos: ComputerUseMacosRequirements | None = None
+    windows: ComputerUseWindowsRequirements | None = None
+
+
+class ComputerUseWindowsConfig(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    aumids: dict[str, Any] | None = None
+    exes: list[ComputerUseWindowsExeConfig] | None = None
 
 
 class ConfigEdit(BaseModel):
@@ -6838,6 +8771,19 @@ class ContentItem(
     root: (
         InputTextContentItem | InputImageContentItem | InputAudioContentItem | OutputTextContentItem
     )
+
+
+class EnvironmentInfoResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    cwd: Annotated[
+        PathUri | None,
+        Field(
+            description="Default working directory reported by the environment, as a canonical file URI."
+        ),
+    ] = None
+    shell: EnvironmentShellInfo
 
 
 class ExperimentalFeature(BaseModel):
@@ -7088,6 +9034,19 @@ class ExecveGuardianApprovalReviewAction(BaseModel):
     type: Annotated[Literal["execve"], Field(title="ExecveGuardianApprovalReviewActionType")]
 
 
+class WriteStdinGuardianApprovalReviewAction(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    approval_id: Annotated[str, Field(alias="approvalId")]
+    cwd: LegacyAppPathString
+    process_id: Annotated[str, Field(alias="processId")]
+    stdin: str
+    type: Annotated[
+        Literal["writeStdin"], Field(title="WriteStdinGuardianApprovalReviewActionType")
+    ]
+
+
 class NetworkAccessGuardianApprovalReviewAction(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -7101,7 +9060,7 @@ class NetworkAccessGuardianApprovalReviewAction(BaseModel):
     ]
 
 
-class HookMetadata(BaseModel):
+class HookMetadata1(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
@@ -7113,12 +9072,10 @@ class HookMetadata(BaseModel):
             ge=0,
         ),
     ] = None
-    command: str | None = None
     current_hash: Annotated[str, Field(alias="currentHash")]
     display_order: Annotated[int, Field(alias="displayOrder")]
     enabled: bool
     event_name: Annotated[HookEventName, Field(alias="eventName")]
-    handler_type: Annotated[HookHandlerType, Field(alias="handlerType")]
     is_managed: Annotated[bool, Field(alias="isManaged")]
     key: str
     matcher: str | None = None
@@ -7128,6 +9085,104 @@ class HookMetadata(BaseModel):
     status_message: Annotated[str | None, Field(alias="statusMessage")] = None
     timeout_sec: Annotated[int, Field(alias="timeoutSec", ge=0)]
     trust_status: Annotated[HookTrustStatus, Field(alias="trustStatus")]
+    async_: Annotated[bool | None, Field(alias="async")] = False
+    command: str
+    handler_type: Annotated[Literal["command"], Field(alias="handlerType")]
+
+
+class HookMetadata2(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    additional_context_limit: Annotated[
+        int | None,
+        Field(
+            alias="additionalContextLimit",
+            description="Configured `additionalContext` spill threshold. `null` uses 2,500 tokens; `0` disables spilling.",
+            ge=0,
+        ),
+    ] = None
+    current_hash: Annotated[str, Field(alias="currentHash")]
+    display_order: Annotated[int, Field(alias="displayOrder")]
+    enabled: bool
+    event_name: Annotated[HookEventName, Field(alias="eventName")]
+    is_managed: Annotated[bool, Field(alias="isManaged")]
+    key: str
+    matcher: str | None = None
+    plugin_id: Annotated[str | None, Field(alias="pluginId")] = None
+    source: HookSource
+    source_path: Annotated[AbsolutePathBuf, Field(alias="sourcePath")]
+    status_message: Annotated[str | None, Field(alias="statusMessage")] = None
+    timeout_sec: Annotated[int, Field(alias="timeoutSec", ge=0)]
+    trust_status: Annotated[HookTrustStatus, Field(alias="trustStatus")]
+    handler_type: Annotated[Literal["mcpTool"], Field(alias="handlerType")]
+    server: str
+    tool: str
+
+
+class PromptHookMetadata(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    additional_context_limit: Annotated[
+        int | None,
+        Field(
+            alias="additionalContextLimit",
+            description="Configured `additionalContext` spill threshold. `null` uses 2,500 tokens; `0` disables spilling.",
+            ge=0,
+        ),
+    ] = None
+    current_hash: Annotated[str, Field(alias="currentHash")]
+    display_order: Annotated[int, Field(alias="displayOrder")]
+    enabled: bool
+    event_name: Annotated[HookEventName, Field(alias="eventName")]
+    is_managed: Annotated[bool, Field(alias="isManaged")]
+    key: str
+    matcher: str | None = None
+    plugin_id: Annotated[str | None, Field(alias="pluginId")] = None
+    source: HookSource
+    source_path: Annotated[AbsolutePathBuf, Field(alias="sourcePath")]
+    status_message: Annotated[str | None, Field(alias="statusMessage")] = None
+    timeout_sec: Annotated[int, Field(alias="timeoutSec", ge=0)]
+    trust_status: Annotated[HookTrustStatus, Field(alias="trustStatus")]
+    handler_type: Annotated[Literal["prompt"], Field(alias="handlerType")]
+
+
+class AgentHookMetadata(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    additional_context_limit: Annotated[
+        int | None,
+        Field(
+            alias="additionalContextLimit",
+            description="Configured `additionalContext` spill threshold. `null` uses 2,500 tokens; `0` disables spilling.",
+            ge=0,
+        ),
+    ] = None
+    current_hash: Annotated[str, Field(alias="currentHash")]
+    display_order: Annotated[int, Field(alias="displayOrder")]
+    enabled: bool
+    event_name: Annotated[HookEventName, Field(alias="eventName")]
+    is_managed: Annotated[bool, Field(alias="isManaged")]
+    key: str
+    matcher: str | None = None
+    plugin_id: Annotated[str | None, Field(alias="pluginId")] = None
+    source: HookSource
+    source_path: Annotated[AbsolutePathBuf, Field(alias="sourcePath")]
+    status_message: Annotated[str | None, Field(alias="statusMessage")] = None
+    timeout_sec: Annotated[int, Field(alias="timeoutSec", ge=0)]
+    trust_status: Annotated[HookTrustStatus, Field(alias="trustStatus")]
+    handler_type: Annotated[Literal["agent"], Field(alias="handlerType")]
+
+
+class HookMetadata(
+    RootModel[HookMetadata1 | HookMetadata2 | PromptHookMetadata | AgentHookMetadata]
+):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    root: HookMetadata1 | HookMetadata2 | PromptHookMetadata | AgentHookMetadata
 
 
 class HookOutputEntry(BaseModel):
@@ -7223,6 +9278,7 @@ class LoginAccountParams(
         | ChatgptDeviceCodeLoginAccountParams
         | ChatgptAuthTokensLoginAccountParams
         | AmazonBedrockLoginAccountParams
+        | AmazonBedrockAccessKeysLoginAccountParams
     ]
 ):
     model_config = ConfigDict(
@@ -7233,7 +9289,8 @@ class LoginAccountParams(
         | ChatgptLoginAccountParams
         | ChatgptDeviceCodeLoginAccountParams
         | ChatgptAuthTokensLoginAccountParams
-        | AmazonBedrockLoginAccountParams,
+        | AmazonBedrockLoginAccountParams
+        | AmazonBedrockAccessKeysLoginAccountParams,
         Field(title="LoginAccountParams"),
     ]
 
@@ -7243,6 +9300,13 @@ class McpResourceReadResponse(BaseModel):
         populate_by_name=True,
     )
     contents: list[ResourceContent]
+    origin_call_id: Annotated[
+        str | None,
+        Field(
+            alias="originCallId",
+            description="Originating call when the server applied app-specific resource scoping.",
+        ),
+    ] = None
 
 
 class McpServerStatus(BaseModel):
@@ -7251,8 +9315,16 @@ class McpServerStatus(BaseModel):
     )
     auth_status: Annotated[McpAuthStatus, Field(alias="authStatus")]
     name: str
+    plugin_id: Annotated[str | None, Field(alias="pluginId")] = None
     resource_templates: Annotated[list[ResourceTemplate], Field(alias="resourceTemplates")]
     resources: list[Resource]
+    runtime_status: Annotated[
+        McpServerConnectionStatus | None,
+        Field(
+            alias="runtimeStatus",
+            description="Current thread-runtime connection state; null when unavailable or the configuration changed.",
+        ),
+    ] = None
     server_info: Annotated[McpServerInfo | None, Field(alias="serverInfo")] = None
     tools: dict[str, Tool]
 
@@ -7277,6 +9349,32 @@ class MigrationDetails(BaseModel):
     sessions: list[SessionMigration] | None = []
     skills: list[SkillMigration] | None = []
     subagents: list[SubagentMigration] | None = []
+
+
+class MisalignmentErrorDetails(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    detailed_explanation: Annotated[
+        str | None,
+        Field(
+            alias="detailedExplanation",
+            description="A substantive localized explanation is required before offering continuation.",
+        ),
+    ] = None
+    error_type: Annotated[
+        str | None,
+        Field(
+            alias="errorType",
+            description="Open-ended classification; clients must accept categories added by Responses.",
+        ),
+    ] = None
+    steer: Annotated[
+        MisalignmentSteer | None,
+        Field(
+            description="Instruction to submit as the next turn's user input if continuation is confirmed."
+        ),
+    ] = None
 
 
 class Model(BaseModel):
@@ -7307,6 +9405,13 @@ class Model(BaseModel):
     is_default: Annotated[bool, Field(alias="isDefault")]
     model: str
     model_specialty: Annotated[str | None, Field(alias="modelSpecialty")] = None
+    multi_agent_version: Annotated[
+        MultiAgentVersion | None,
+        Field(
+            alias="multiAgentVersion",
+            description="Multi-agent runtime declared by this model, when available.",
+        ),
+    ] = None
     service_tiers: Annotated[list[ModelServiceTier] | None, Field(alias="serviceTiers")] = []
     supported_reasoning_efforts: Annotated[
         list[ReasoningEffortOption], Field(alias="supportedReasoningEfforts")
@@ -7341,6 +9446,24 @@ class NewThreadModelDefaults(BaseModel):
     service_tier: Annotated[str | None, Field(alias="serviceTier")] = None
 
 
+class NullableRemoteControlDisableParams(RootModel[RemoteControlDisableParams | None]):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    root: Annotated[
+        RemoteControlDisableParams | None, Field(title="Nullable_RemoteControlDisableParams")
+    ]
+
+
+class NullableRemoteControlEnableParams(RootModel[RemoteControlEnableParams | None]):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    root: Annotated[
+        RemoteControlEnableParams | None, Field(title="Nullable_RemoteControlEnableParams")
+    ]
+
+
 class OverriddenMetadata(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -7362,6 +9485,17 @@ class PermissionProfileListResponse(BaseModel):
             description="Opaque cursor to pass to the next call to continue after the last item. If None, there are no more items to return.",
         ),
     ] = None
+
+
+class PluginSearchParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    cursor: str | None = None
+    cwds: list[AbsolutePathBuf] | None = None
+    limit: Annotated[int | None, Field(ge=0)] = None
+    scope: PluginSearchScope | None = None
+    search_term: Annotated[str, Field(alias="searchTerm")]
 
 
 class PluginSharePrincipal(BaseModel):
@@ -7424,6 +9558,194 @@ class ProcessOutputDeltaNotification(BaseModel):
     stream: Annotated[
         ProcessOutputStream, Field(description="Output stream this chunk belongs to.")
     ]
+
+
+class ProcessResizePtyParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    process_handle: Annotated[
+        str,
+        Field(
+            alias="processHandle",
+            description="Client-supplied, connection-scoped `processHandle` from `process/spawn`.",
+        ),
+    ]
+    size: Annotated[ProcessTerminalSize, Field(description="New PTY size in character cells.")]
+
+
+class ProcessSpawnParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    command: Annotated[
+        list[str], Field(description="Command argv vector. Empty arrays are rejected.")
+    ]
+    cwd: Annotated[
+        AbsolutePathBuf, Field(description="Absolute working directory for the process.")
+    ]
+    env: Annotated[
+        dict[str, Any] | None,
+        Field(
+            description="Optional environment overrides merged into the app-server process environment.\n\nMatching names override inherited values. Set a key to `null` to unset an inherited variable."
+        ),
+    ] = None
+    output_bytes_cap: Annotated[
+        int | None,
+        Field(
+            alias="outputBytesCap",
+            description="Optional per-stream stdout/stderr capture cap in bytes.\n\nWhen omitted, the server default applies. Set to `null` to disable the cap.",
+            ge=0,
+        ),
+    ] = None
+    process_handle: Annotated[
+        str,
+        Field(
+            alias="processHandle",
+            description="Client-supplied, connection-scoped process handle.\n\nDuplicate active handles are rejected on the same connection. The same handle can be reused after the prior process exits.",
+        ),
+    ]
+    size: Annotated[
+        ProcessTerminalSize | None,
+        Field(
+            description="Optional initial PTY size in character cells. Only valid when `tty` is true."
+        ),
+    ] = None
+    stream_stdin: Annotated[
+        bool | None,
+        Field(
+            alias="streamStdin",
+            description="Allow follow-up `process/writeStdin` requests to write stdin bytes.",
+        ),
+    ] = None
+    stream_stdout_stderr: Annotated[
+        bool | None,
+        Field(
+            alias="streamStdoutStderr",
+            description="Stream stdout/stderr via `process/outputDelta` notifications.\n\nStreamed bytes are not duplicated into the `process/exited` notification.",
+        ),
+    ] = None
+    timeout_ms: Annotated[
+        int | None,
+        Field(
+            alias="timeoutMs",
+            description="Optional timeout in milliseconds.\n\nWhen omitted, the server default applies. Set to `null` to disable the timeout.",
+        ),
+    ] = None
+    tty: Annotated[
+        bool | None,
+        Field(
+            description="Enable PTY mode.\n\nThis implies `streamStdin` and `streamStdoutStderr`."
+        ),
+    ] = None
+
+
+class Project(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    created_at: Annotated[int, Field(alias="createdAt")]
+    id: str
+    metadata: dict[str, str]
+    name: str
+    position: int
+    recency_at: Annotated[
+        int | None,
+        Field(
+            alias="recencyAt",
+            description="Newest non-archived member thread's recency, in Unix seconds; null when none exist.",
+        ),
+    ] = None
+    roots: list[ProjectRoot]
+    updated_at: Annotated[int, Field(alias="updatedAt")]
+
+
+class ProjectCreateParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    idempotency_key: Annotated[str, Field(alias="idempotencyKey")]
+    metadata: dict[str, Any] | None = None
+    name: str
+    roots: list[ProjectRoot]
+
+
+class ProjectCreateResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    project: Project
+
+
+class ProjectImportParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    idempotency_key: Annotated[str, Field(alias="idempotencyKey")]
+    metadata: dict[str, Any] | None = None
+    name: str
+    roots: list[ProjectRoot]
+    threads: list[str] | None = None
+
+
+class ProjectImportResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    project: Project
+
+
+class ProjectListParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    cursor: str | None = None
+    limit: Annotated[int | None, Field(ge=0)] = None
+    sort_direction: Annotated[
+        SortDirection | None,
+        Field(
+            alias="sortDirection",
+            description="Requires sortKey. Defaults to asc for position and desc for recencyAt.",
+        ),
+    ] = None
+    sort_key: Annotated[
+        ProjectSortKey | None,
+        Field(
+            alias="sortKey",
+            description="Defaults to position. Recency sorting always places empty projects last.",
+        ),
+    ] = None
+
+
+class ProjectListResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    data: list[Project]
+    next_cursor: Annotated[str | None, Field(alias="nextCursor")] = None
+
+
+class ProjectReadResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    project: Project
+
+
+class ProjectUpdateResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    project: Project
+
+
+class QueuedSubmission(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    client_user_message_id: Annotated[str, Field(alias="clientUserMessageId")]
+    id: str
+    input: list[UserInput]
 
 
 class RateLimitResetCredit(BaseModel):
@@ -7506,6 +9828,7 @@ class RawResponseCompletedNotification(BaseModel):
     thread_id: Annotated[str, Field(alias="threadId")]
     turn_id: Annotated[str, Field(alias="turnId")]
     usage: TokenUsageBreakdown | None = None
+    usage_metadata: Annotated[ResponseUsageMetadata | None, Field(alias="usageMetadata")] = None
 
 
 class MessageResponseItem(BaseModel):
@@ -7671,6 +9994,21 @@ class ThreadClosedServerNotification(BaseModel):
     params: ThreadClosedNotification
 
 
+class ThreadRevertedServerNotification(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    emitted_at_ms: Annotated[
+        int | None,
+        Field(
+            alias="emittedAtMs",
+            description="Unix timestamp (in milliseconds) when app-server emitted this notification.",
+        ),
+    ] = None
+    method: Annotated[Literal["thread/reverted"], Field(title="Thread/revertedNotificationMethod")]
+    params: ThreadRevertedNotification
+
+
 class SkillsChangedServerNotification(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -7720,6 +10058,40 @@ class ThreadGoalClearedServerNotification(BaseModel):
     params: ThreadGoalClearedNotification
 
 
+class ThreadQueueChangedServerNotification(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    emitted_at_ms: Annotated[
+        int | None,
+        Field(
+            alias="emittedAtMs",
+            description="Unix timestamp (in milliseconds) when app-server emitted this notification.",
+        ),
+    ] = None
+    method: Annotated[
+        Literal["thread/queue/changed"], Field(title="Thread/queue/changedNotificationMethod")
+    ]
+    params: ThreadQueueChangedNotification
+
+
+class ThreadProjectUpdatedServerNotification(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    emitted_at_ms: Annotated[
+        int | None,
+        Field(
+            alias="emittedAtMs",
+            description="Unix timestamp (in milliseconds) when app-server emitted this notification.",
+        ),
+    ] = None
+    method: Annotated[
+        Literal["thread/project/updated"], Field(title="Thread/project/updatedNotificationMethod")
+    ]
+    params: ThreadProjectUpdatedNotification
+
+
 class HookStartedServerNotification(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -7750,6 +10122,24 @@ class TurnDiffUpdatedServerNotification(BaseModel):
         Literal["turn/diff/updated"], Field(title="Turn/diff/updatedNotificationMethod")
     ]
     params: TurnDiffUpdatedNotification
+
+
+class AutoApprovalReviewStrictReviewRequiredServerNotification(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    emitted_at_ms: Annotated[
+        int | None,
+        Field(
+            alias="emittedAtMs",
+            description="Unix timestamp (in milliseconds) when app-server emitted this notification.",
+        ),
+    ] = None
+    method: Annotated[
+        Literal["autoApprovalReview/strictReviewRequired"],
+        Field(title="AutoApprovalReview/strictReviewRequiredNotificationMethod"),
+    ]
+    params: StrictReviewRequiredNotification
 
 
 class CommandExecOutputDeltaServerNotification(BaseModel):
@@ -7919,6 +10309,24 @@ class ThreadRealtimeItemAddedServerNotification(BaseModel):
     params: ThreadRealtimeItemAddedNotification
 
 
+class ThreadRealtimeItemTranscriptDeltaServerNotification(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    emitted_at_ms: Annotated[
+        int | None,
+        Field(
+            alias="emittedAtMs",
+            description="Unix timestamp (in milliseconds) when app-server emitted this notification.",
+        ),
+    ] = None
+    method: Annotated[
+        Literal["thread/realtime/item/transcript/delta"],
+        Field(title="Thread/realtime/item/transcript/deltaNotificationMethod"),
+    ]
+    params: ThreadRealtimeItemTranscriptDeltaNotification
+
+
 class ThreadRealtimeTranscriptDeltaServerNotification(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -8076,6 +10484,13 @@ class SkillMetadata(BaseModel):
     interface: SkillInterface | None = None
     name: str
     path: AbsolutePathBuf
+    plugin_id: Annotated[
+        str | None,
+        Field(
+            alias="pluginId",
+            description="Owning plugin ID, matching `PluginSummary.id`, when known.",
+        ),
+    ] = None
     scope: SkillScope
     short_description: Annotated[
         str | None,
@@ -8143,10 +10558,31 @@ class ThreadForkParams(BaseModel):
         ),
     ] = None
     base_instructions: Annotated[str | None, Field(alias="baseInstructions")] = None
+    before_turn_id: Annotated[
+        str | None,
+        Field(
+            alias="beforeTurnId",
+            description="Optional turn id to fork before, excluding that turn and all later turns. Cannot be combined with `last_turn_id`.",
+        ),
+    ] = None
     config: dict[str, Any] | None = None
     cwd: str | None = None
+    defer_goal_continuation: Annotated[
+        bool | None,
+        Field(
+            alias="deferGoalContinuation",
+            description="When true, carry the source thread's current goal into the fork without starting its initial automatic continuation. The next explicit turn owns the goal lifecycle, and normal automatic continuation resumes after it.",
+        ),
+    ] = None
     developer_instructions: Annotated[str | None, Field(alias="developerInstructions")] = None
     ephemeral: bool | None = None
+    exclude_turns: Annotated[
+        bool | None,
+        Field(
+            alias="excludeTurns",
+            description="When true, return only thread metadata and live fork state without populating `thread.turns`. This is useful when the client plans to call `thread/turns/list` immediately after forking. Full-history hydration is deprecated for paginated threads; use this with `thread/turns/list` and `thread/items/list` instead.",
+        ),
+    ] = None
     last_turn_id: Annotated[
         str | None,
         Field(
@@ -8158,6 +10594,25 @@ class ThreadForkParams(BaseModel):
         str | None, Field(description="Configuration overrides for the forked thread, if any.")
     ] = None
     model_provider: Annotated[str | None, Field(alias="modelProvider")] = None
+    path: Annotated[
+        str | None,
+        Field(
+            description="[UNSTABLE] Specify the rollout path to fork from. If specified, the thread_id param will be ignored."
+        ),
+    ] = None
+    permissions: Annotated[
+        str | None,
+        Field(
+            description="Named profile id for the forked thread. Cannot be combined with `sandbox`."
+        ),
+    ] = None
+    runtime_workspace_roots: Annotated[
+        list[AbsolutePathBuf] | None,
+        Field(
+            alias="runtimeWorkspaceRoots",
+            description="Replace the thread's runtime workspace roots. Paths must be absolute.",
+        ),
+    ] = None
     sandbox: SandboxMode | None = None
     service_tier: Annotated[str | None, Field(alias="serviceTier")] = None
     thread_id: Annotated[str, Field(alias="threadId")]
@@ -8231,6 +10686,7 @@ class AgentMessageThreadItem(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
+    delivery: AgentMessageDelivery | None = None
     id: str
     memory_citation: Annotated[MemoryCitation | None, Field(alias="memoryCitation")] = None
     phase: MessagePhase | None = None
@@ -8368,65 +10824,17 @@ class WebSearchThreadItem(BaseModel):
     type: Annotated[Literal["webSearch"], Field(title="WebSearchThreadItemType")]
 
 
-class ThreadItem(
-    RootModel[
-        UserMessageThreadItem
-        | HookPromptThreadItem
-        | AgentMessageThreadItem
-        | PlanThreadItem
-        | ReasoningThreadItem
-        | CommandExecutionThreadItem
-        | FileChangeThreadItem
-        | McpToolCallThreadItem
-        | DynamicToolCallThreadItem
-        | CollabAgentToolCallThreadItem
-        | SubAgentActivityThreadItem
-        | WebSearchThreadItem
-        | ImageViewThreadItem
-        | SleepThreadItem
-        | ImageGenerationThreadItem
-        | EnteredReviewModeThreadItem
-        | ExitedReviewModeThreadItem
-        | ContextCompactionThreadItem
-    ]
-):
-    model_config = ConfigDict(
-        populate_by_name=True,
-    )
-    root: (
-        UserMessageThreadItem
-        | HookPromptThreadItem
-        | AgentMessageThreadItem
-        | PlanThreadItem
-        | ReasoningThreadItem
-        | CommandExecutionThreadItem
-        | FileChangeThreadItem
-        | McpToolCallThreadItem
-        | DynamicToolCallThreadItem
-        | CollabAgentToolCallThreadItem
-        | SubAgentActivityThreadItem
-        | WebSearchThreadItem
-        | ImageViewThreadItem
-        | SleepThreadItem
-        | ImageGenerationThreadItem
-        | EnteredReviewModeThreadItem
-        | ExitedReviewModeThreadItem
-        | ContextCompactionThreadItem
-    )
-
-
-class ThreadItemEntry(BaseModel):
-    model_config = ConfigDict(
-        populate_by_name=True,
-    )
-    item: ThreadItem
-    turn_id: Annotated[str, Field(alias="turnId", description="Turn containing this item.")]
-
-
 class ThreadListParams(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
+    ancestor_thread_id: Annotated[
+        str | None,
+        Field(
+            alias="ancestorThreadId",
+            description="Optional ancestor thread filter. Returns spawned descendants at any depth, excluding the ancestor itself. Mutually exclusive with `parentThreadId`.",
+        ),
+    ] = None
     archived: Annotated[
         bool | None,
         Field(
@@ -8451,6 +10859,20 @@ class ThreadListParams(BaseModel):
         Field(
             alias="modelProviders",
             description="Optional provider filter; when set, only sessions recorded under these providers are returned. When present but empty, includes all providers.",
+        ),
+    ] = None
+    parent_thread_id: Annotated[
+        str | None,
+        Field(
+            alias="parentThreadId",
+            description="Optional direct parent thread filter. Mutually exclusive with `ancestorThreadId`.",
+        ),
+    ] = None
+    project_id: Annotated[
+        str | None,
+        Field(
+            alias="projectId",
+            description="Omit to include every project, set to null for unassigned threads, or provide a project ID to return only threads in that project.",
         ),
     ] = None
     search_term: Annotated[
@@ -8494,6 +10916,228 @@ class ThreadListParams(BaseModel):
     ] = None
 
 
+class ThreadQueueAddParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    client_user_message_id: Annotated[str, Field(alias="clientUserMessageId")]
+    input: list[UserInput]
+    thread_id: Annotated[str, Field(alias="threadId")]
+
+
+class ThreadQueueAddResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    queued_submission: Annotated[QueuedSubmission, Field(alias="queuedSubmission")]
+
+
+class ThreadQueueListResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    data: list[QueuedSubmission]
+    next_cursor: Annotated[
+        str | None,
+        Field(
+            alias="nextCursor",
+            description="Opaque cursor for the next page, or `null` when no submissions remain.",
+        ),
+    ] = None
+
+
+class ThreadQueueUpdateParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    input: list[UserInput]
+    queued_submission_id: Annotated[str, Field(alias="queuedSubmissionId")]
+    thread_id: Annotated[str, Field(alias="threadId")]
+
+
+class ThreadQueueUpdateResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    queued_submission: Annotated[QueuedSubmission, Field(alias="queuedSubmission")]
+
+
+class ThreadRealtimeAppendAudioParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    audio: ThreadRealtimeAudioChunk
+    thread_id: Annotated[str, Field(alias="threadId")]
+
+
+class TranscriptSegmentThreadRealtimeItem(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: str
+    realtime_session_id: Annotated[str, Field(alias="realtimeSessionId")]
+    role: ThreadRealtimeTranscriptRole
+    text: str
+    type: Annotated[
+        Literal["transcriptSegment"], Field(title="TranscriptSegmentThreadRealtimeItemType")
+    ]
+
+
+class RealtimeSessionClosedThreadRealtimeItem(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: str
+    realtime_session_id: Annotated[str, Field(alias="realtimeSessionId")]
+    outcome: ThreadRealtimeSessionOutcome
+    type: Annotated[
+        Literal["realtimeSessionClosed"], Field(title="RealtimeSessionClosedThreadRealtimeItemType")
+    ]
+
+
+class ThreadRealtimeItem(
+    RootModel[
+        RealtimeSessionStartedThreadRealtimeItem
+        | TranscriptSegmentThreadRealtimeItem
+        | BemItemPromotedThreadRealtimeItem
+        | RealtimeSessionClosedThreadRealtimeItem
+    ]
+):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    root: Annotated[
+        RealtimeSessionStartedThreadRealtimeItem
+        | TranscriptSegmentThreadRealtimeItem
+        | BemItemPromotedThreadRealtimeItem
+        | RealtimeSessionClosedThreadRealtimeItem,
+        Field(
+            description="EXPERIMENTAL - a thread-scoped realtime item in the canonical timeline."
+        ),
+    ]
+
+
+class ThreadRealtimeItemCompletedNotification(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    item: ThreadRealtimeItem
+    thread_id: Annotated[str, Field(alias="threadId")]
+
+
+class ThreadRealtimeItemStartedNotification(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    item: ThreadRealtimeItem
+    thread_id: Annotated[str, Field(alias="threadId")]
+
+
+class ThreadRealtimeStartParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    client_managed_handoffs: Annotated[
+        bool | None,
+        Field(
+            alias="clientManagedHandoffs",
+            description="Leaves Codex response handoffs to the client's explicit append calls instead of forwarding them automatically. Defaults to false.",
+        ),
+    ] = None
+    codex_response_handoff_channel_prefixes: Annotated[
+        dict[str, Any] | None,
+        Field(
+            alias="codexResponseHandoffChannelPrefixes",
+            description="Overrides BEM channel prefixes by `analysis`, `commentary`, or `final`. Omitted channels retain their default uppercase bracketed prefixes.",
+        ),
+    ] = None
+    codex_response_handoff_mode: Annotated[
+        CodexResponseHandoffMode | None,
+        Field(
+            alias="codexResponseHandoffMode",
+            description="Selects how automatic Codex responses are routed in Frameless Bidi sessions. Omitted values default to `thinking`. Realtime V1 and V2 ignore this setting.",
+        ),
+    ] = None
+    codex_response_item_prefix: Annotated[
+        str | None,
+        Field(
+            alias="codexResponseItemPrefix",
+            description="Optional prefix added to automatic Codex response items when `codexResponsesAsItems` is true.",
+        ),
+    ] = None
+    codex_responses_as_items: Annotated[
+        bool | None,
+        Field(
+            alias="codexResponsesAsItems",
+            description="Sends automatic Codex responses as realtime conversation items instead of handoff appends.",
+        ),
+    ] = None
+    delegation_ack_filler: Annotated[
+        bool | None,
+        Field(
+            alias="delegationAckFiller",
+            description="Controls whether a realtime V3 delegation produces an acknowledgement filler. Omitted values preserve the Realtime API's default behavior.",
+        ),
+    ] = None
+    flush_transcript_tail_on_session_end: Annotated[
+        bool | None,
+        Field(
+            alias="flushTranscriptTailOnSessionEnd",
+            description="Routes any transcript tail remaining at session end through Codex. Defaults to false. TODO: Remove this rollout knob once transcript-tail flushing is always enabled.",
+        ),
+    ] = None
+    include_startup_context: Annotated[
+        bool | None,
+        Field(
+            alias="includeStartupContext",
+            description="Set to false to start without Codex's startup context. Omitted or null includes it.",
+        ),
+    ] = None
+    initial_items: Annotated[
+        list[ThreadRealtimeInitialItem] | None,
+        Field(
+            alias="initialItems",
+            description="Adds complete role-bearing text items to the initial Frameless Bidi session history. This is only supported by realtime V3 and is sent during session startup. Requests are limited to 128 items and 8,192 estimated text tokens in total.",
+        ),
+    ] = None
+    model: Annotated[
+        str | None,
+        Field(description="Overrides the configured realtime model for this session only."),
+    ] = None
+    output_modality: Annotated[
+        RealtimeOutputModality,
+        Field(
+            alias="outputModality",
+            description="Selects text or audio output for the realtime session. Transport and voice stay independent so clients can choose how they connect separately from what the model emits.",
+        ),
+    ]
+    prompt: str | None = None
+    realtime_end_instructions: Annotated[
+        str | None,
+        Field(
+            alias="realtimeEndInstructions",
+            description="Developer instructions given to the backing Codex model when this realtime session ends.",
+        ),
+    ] = None
+    realtime_session_id: Annotated[str | None, Field(alias="realtimeSessionId")] = None
+    realtime_start_instructions: Annotated[
+        str | None,
+        Field(
+            alias="realtimeStartInstructions",
+            description="Developer instructions given to the backing Codex model when this realtime session starts.",
+        ),
+    ] = None
+    thread_id: Annotated[str, Field(alias="threadId")]
+    transport: ThreadRealtimeStartTransport | None = None
+    version: Annotated[
+        RealtimeConversationVersion | None,
+        Field(
+            description="Overrides the configured realtime protocol version for this session only."
+        ),
+    ] = None
+    voice: RealtimeVoice | None = None
+
+
 class ThreadResumeInitialTurnsPageParams(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -8515,6 +11159,134 @@ class ThreadResumeInitialTurnsPageParams(BaseModel):
     ] = None
 
 
+class ThreadSearchOccurrence(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    item_id: Annotated[str, Field(alias="itemId")]
+    snippet: str
+    snippet_match_range: Annotated[
+        ThreadSearchTextRange,
+        Field(
+            alias="snippetMatchRange",
+            description="Match range within `snippet`, in UTF-16 code units.",
+        ),
+    ]
+    turn_cursor: Annotated[
+        str,
+        Field(
+            alias="turnCursor",
+            description="Opaque inclusive cursor accepted by `thread/turns/list` for this turn.",
+        ),
+    ]
+    turn_id: Annotated[str, Field(alias="turnId")]
+
+
+class ThreadSearchOccurrencesResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    data: Annotated[
+        list[ThreadSearchOccurrence],
+        Field(description="Occurrences in chronological message order."),
+    ]
+    next_cursor: Annotated[
+        str | None,
+        Field(
+            alias="nextCursor",
+            description="Opaque cursor to continue after the last returned occurrence.",
+        ),
+    ] = None
+
+
+class ThreadSearchParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    archived: Annotated[
+        bool | None,
+        Field(
+            description="Optional archived filter; when set to true, only archived threads are returned. If false or null, only non-archived threads are returned."
+        ),
+    ] = None
+    cursor: Annotated[
+        str | None, Field(description="Opaque pagination cursor returned by a previous call.")
+    ] = None
+    limit: Annotated[
+        int | None,
+        Field(description="Optional page size; defaults to a reasonable server-side value.", ge=0),
+    ] = None
+    search_term: Annotated[
+        str,
+        Field(
+            alias="searchTerm", description="Required substring/full-text query for thread search."
+        ),
+    ]
+    sort_direction: Annotated[
+        SortDirection | None,
+        Field(
+            alias="sortDirection",
+            description="Optional sort direction; defaults to descending (newest first).",
+        ),
+    ] = None
+    sort_key: Annotated[
+        ThreadSearchSortKey | None,
+        Field(alias="sortKey", description="Optional sort key; defaults to created_at."),
+    ] = None
+    source_kinds: Annotated[
+        list[ThreadSourceKind] | None,
+        Field(
+            alias="sourceKinds",
+            description="Optional source filter; when set, only sessions from these source kinds are returned. When omitted or empty, defaults to interactive sources.",
+        ),
+    ] = None
+
+
+class ThreadSection(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    appearance: Annotated[
+        ThreadSectionAppearance | None,
+        Field(description="Optional appearance synchronized across clients."),
+    ] = None
+    id: Annotated[
+        str,
+        Field(
+            description="Opaque UUIDv7 identity that remains stable when the section is renamed."
+        ),
+    ]
+    name: Annotated[str, Field(description="The current user-visible section name.")]
+
+
+class ThreadSectionCreateResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    section: ThreadSection
+
+
+class ThreadSectionListResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    data: list[ThreadSection]
+    next_cursor: Annotated[
+        str | None,
+        Field(
+            alias="nextCursor",
+            description="Opaque cursor for the next page, or `null` when no sections remain.",
+        ),
+    ] = None
+
+
+class ThreadSectionUpdateResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    section: ThreadSection
+
+
 class ThreadSettings(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -8529,10 +11301,87 @@ class ThreadSettings(BaseModel):
     effort: ReasoningEffort | None = None
     model: str
     model_provider: Annotated[str, Field(alias="modelProvider")]
+    multi_agent_mode: Annotated[
+        MultiAgentMode | None,
+        Field(
+            alias="multiAgentMode",
+            description="@deprecated Always `explicitRequestOnly`. Use `effort` for Ultra behavior.",
+        ),
+    ] = "explicitRequestOnly"
     personality: Personality | None = None
     sandbox_policy: Annotated[SandboxPolicy, Field(alias="sandboxPolicy")]
     service_tier: Annotated[str | None, Field(alias="serviceTier")] = None
     summary: ReasoningSummary | None = None
+
+
+class ThreadSettingsUpdateParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    approval_policy: Annotated[
+        AskForApproval | None,
+        Field(
+            alias="approvalPolicy", description="Override the approval policy for subsequent turns."
+        ),
+    ] = None
+    approvals_reviewer: Annotated[
+        ApprovalsReviewer | None,
+        Field(
+            alias="approvalsReviewer",
+            description="Override where approval requests are routed for subsequent turns.",
+        ),
+    ] = None
+    collaboration_mode: Annotated[
+        CollaborationMode | None,
+        Field(
+            alias="collaborationMode",
+            description='EXPERIMENTAL - Set a pre-set collaboration mode for subsequent turns.\n\nFor `collaboration_mode.settings.developer_instructions`, `null` means "use the built-in instructions for the selected mode".',
+        ),
+    ] = None
+    cwd: Annotated[
+        str | None, Field(description="Override the working directory for subsequent turns.")
+    ] = None
+    effort: Annotated[
+        ReasoningEffort | None,
+        Field(description="Override the reasoning effort for subsequent turns."),
+    ] = None
+    model: Annotated[str | None, Field(description="Override the model for subsequent turns.")] = (
+        None
+    )
+    multi_agent_mode: Annotated[
+        MultiAgentMode | None,
+        Field(
+            alias="multiAgentMode",
+            description='@deprecated Ignored. Use `effort: "ultra"` for proactive multi-agent behavior.',
+        ),
+    ] = None
+    permissions: Annotated[
+        str | None,
+        Field(
+            description="Select a named permissions profile id for subsequent turns. Cannot be combined with `sandboxPolicy`."
+        ),
+    ] = None
+    personality: Annotated[
+        Personality | None, Field(description="Override the personality for subsequent turns.")
+    ] = None
+    sandbox_policy: Annotated[
+        SandboxPolicy | None,
+        Field(
+            alias="sandboxPolicy", description="Override the sandbox policy for subsequent turns."
+        ),
+    ] = None
+    service_tier: Annotated[
+        str | None,
+        Field(
+            alias="serviceTier",
+            description="Override the service tier for subsequent turns. `null` clears the current service tier; omission leaves it unchanged.",
+        ),
+    ] = None
+    summary: Annotated[
+        ReasoningSummary | None,
+        Field(description="Override the reasoning summary for subsequent turns."),
+    ] = None
+    thread_id: Annotated[str, Field(alias="threadId")]
 
 
 class ThreadSettingsUpdatedNotification(BaseModel):
@@ -8547,6 +11396,13 @@ class ThreadStartParams(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
+    allow_provider_model_fallback: Annotated[
+        bool | None,
+        Field(
+            alias="allowProviderModelFallback",
+            description="Allow a provider with an authoritative static model catalog to replace an unavailable requested model with its default.",
+        ),
+    ] = None
     approval_policy: Annotated[AskForApproval | None, Field(alias="approvalPolicy")] = None
     approvals_reviewer: Annotated[
         ApprovalsReviewer | None,
@@ -8559,11 +11415,71 @@ class ThreadStartParams(BaseModel):
     config: dict[str, Any] | None = None
     cwd: str | None = None
     developer_instructions: Annotated[str | None, Field(alias="developerInstructions")] = None
+    dynamic_tools: Annotated[list[DynamicToolSpec] | None, Field(alias="dynamicTools")] = None
+    environments: Annotated[
+        list[TurnEnvironmentParams] | None,
+        Field(
+            description="Optional sticky environments for this thread.\n\nOmitted selects the default environment when environment access is enabled. Empty disables environment access for turns that do not provide a turn override. Non-empty selects the first environment as the current turn environment."
+        ),
+    ] = None
     ephemeral: bool | None = None
+    experimental_raw_events: Annotated[
+        bool | None,
+        Field(
+            alias="experimentalRawEvents",
+            description="If true, opt into emitting raw Responses API items on the event stream. This is for internal use only (e.g. Codex Cloud).",
+        ),
+    ] = None
+    history_mode: Annotated[
+        ThreadHistoryMode | None,
+        Field(
+            alias="historyMode",
+            description="Persisted thread history contract to use for this new thread.",
+        ),
+    ] = None
+    mock_experimental_field: Annotated[
+        str | None,
+        Field(
+            alias="mockExperimentalField",
+            description="Test-only experimental field used to validate experimental gating and schema filtering behavior in a stable way.",
+        ),
+    ] = None
     model: str | None = None
     model_provider: Annotated[str | None, Field(alias="modelProvider")] = None
+    multi_agent_mode: Annotated[
+        MultiAgentMode | None,
+        Field(
+            alias="multiAgentMode",
+            description="@deprecated Ignored. Use Ultra reasoning effort for proactive multi-agent behavior.",
+        ),
+    ] = None
+    permissions: Annotated[
+        str | None,
+        Field(description="Named profile id for this thread. Cannot be combined with `sandbox`."),
+    ] = None
     personality: Personality | None = None
+    project_id: Annotated[
+        str | None,
+        Field(
+            alias="projectId",
+            description="Optional project identity for this new thread. Durable threads persist the assignment; ephemeral threads expose it only in live responses.",
+        ),
+    ] = None
+    runtime_workspace_roots: Annotated[
+        list[AbsolutePathBuf] | None,
+        Field(
+            alias="runtimeWorkspaceRoots",
+            description="Replace the thread's runtime workspace roots. Paths must be absolute.",
+        ),
+    ] = None
     sandbox: SandboxMode | None = None
+    selected_capability_roots: Annotated[
+        list[SelectedCapabilityRoot] | None,
+        Field(
+            alias="selectedCapabilityRoots",
+            description="Capability roots selected for this thread by the hosting platform.",
+        ),
+    ] = None
     service_name: Annotated[str | None, Field(alias="serviceName")] = None
     service_tier: Annotated[str | None, Field(alias="serviceTier")] = None
     session_start_source: Annotated[ThreadStartSource | None, Field(alias="sessionStartSource")] = (
@@ -8576,6 +11492,15 @@ class ThreadStartParams(BaseModel):
             description="Optional client-supplied analytics source classification for this thread.",
         ),
     ] = None
+
+
+class RealtimeThreadTimelineEntry(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    item: ThreadRealtimeItem
+    position: Annotated[int, Field(ge=0)]
+    type: Annotated[Literal["realtime"], Field(title="RealtimeThreadTimelineEntryType")]
 
 
 class ThreadTokenUsage(BaseModel):
@@ -8596,11 +11521,49 @@ class ThreadTokenUsageUpdatedNotification(BaseModel):
     turn_id: Annotated[str, Field(alias="turnId")]
 
 
+class ThreadTurnsListParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    cursor: Annotated[
+        str | None,
+        Field(
+            description="Opaque cursor to pass to the next call to continue after the last turn."
+        ),
+    ] = None
+    items_view: Annotated[
+        TurnItemsView | None,
+        Field(
+            alias="itemsView",
+            description="How much item detail to include for each returned turn; defaults to summary.",
+        ),
+    ] = None
+    limit: Annotated[int | None, Field(description="Optional turn page size.", ge=0)] = None
+    sort_direction: Annotated[
+        SortDirection | None,
+        Field(
+            alias="sortDirection",
+            description="Optional turn pagination direction; defaults to descending.",
+        ),
+    ] = None
+    thread_id: Annotated[str, Field(alias="threadId")]
+
+
 class ThreadUnsubscribeResponse(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
     status: ThreadUnsubscribeStatus
+
+
+class ThreadUsage(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    estimated_usage_credits_micros: Annotated[int, Field(alias="estimatedUsageCreditsMicros")]
+    estimated_usage_usd_micros: Annotated[int | None, Field(alias="estimatedUsageUsdMicros")] = None
+    groups: list[ThreadUsageBreakdownGroup]
+    thread_id: Annotated[str, Field(alias="threadId")]
 
 
 class ToolsV2(BaseModel):
@@ -8617,6 +11580,12 @@ class TurnError(BaseModel):
     additional_details: Annotated[str | None, Field(alias="additionalDetails")] = None
     codex_error_info: Annotated[CodexErrorInfo | None, Field(alias="codexErrorInfo")] = None
     message: str
+    misalignment: Annotated[
+        MisalignmentErrorDetails | None,
+        Field(
+            description="Optional public explanation and continuation instruction for a misalignment block."
+        ),
+    ] = None
 
 
 class TurnPlanStep(BaseModel):
@@ -8637,73 +11606,24 @@ class TurnPlanUpdatedNotification(BaseModel):
     turn_id: Annotated[str, Field(alias="turnId")]
 
 
-class TurnStartParams(BaseModel):
+class TurnSettingsUpdateResponse(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
-    approval_policy: Annotated[
-        AskForApproval | None,
-        Field(
-            alias="approvalPolicy",
-            description="Override the approval policy for this turn and subsequent turns.",
-        ),
-    ] = None
-    approvals_reviewer: Annotated[
-        ApprovalsReviewer | None,
-        Field(
-            alias="approvalsReviewer",
-            description="Override where approval requests are routed for review on this turn and subsequent turns.",
-        ),
-    ] = None
-    client_user_message_id: Annotated[str | None, Field(alias="clientUserMessageId")] = None
-    cwd: Annotated[
-        str | None,
-        Field(description="Override the working directory for this turn and subsequent turns."),
-    ] = None
-    effort: Annotated[
-        ReasoningEffort | None,
-        Field(description="Override the reasoning effort for this turn and subsequent turns."),
-    ] = None
-    input: list[UserInput]
-    model: Annotated[
-        str | None, Field(description="Override the model for this turn and subsequent turns.")
-    ] = None
-    output_schema: Annotated[
-        Any | None,
-        Field(
-            alias="outputSchema",
-            description="Optional JSON Schema used to constrain the final assistant message for this turn.",
-        ),
-    ] = None
-    personality: Annotated[
-        Personality | None,
-        Field(description="Override the personality for this turn and subsequent turns."),
-    ] = None
-    sandbox_policy: Annotated[
-        SandboxPolicy | None,
-        Field(
-            alias="sandboxPolicy",
-            description="Override the sandbox policy for this turn and subsequent turns.",
-        ),
-    ] = None
-    service_tier: Annotated[
-        str | None,
-        Field(
-            alias="serviceTier",
-            description="Override the service tier for this turn and subsequent turns.",
-        ),
-    ] = None
-    summary: Annotated[
-        ReasoningSummary | None,
-        Field(description="Override the reasoning summary for this turn and subsequent turns."),
-    ] = None
-    thread_id: Annotated[str, Field(alias="threadId")]
+    status: TurnSettingsUpdateStatus
 
 
 class TurnSteerParams(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
+    additional_context: Annotated[
+        dict[str, Any] | None,
+        Field(
+            alias="additionalContext",
+            description="Optional client-provided context fragments keyed by an opaque source identifier.",
+        ),
+    ] = None
     client_user_message_id: Annotated[str | None, Field(alias="clientUserMessageId")] = None
     expected_turn_id: Annotated[
         str,
@@ -8713,6 +11633,13 @@ class TurnSteerParams(BaseModel):
         ),
     ]
     input: list[UserInput]
+    responsesapi_client_metadata: Annotated[
+        dict[str, Any] | None,
+        Field(
+            alias="responsesapiClientMetadata",
+            description='Optional metadata to enrich Codex\'s ResponsesAPI turn metadata.\n\nEntries are flattened into the JSON string sent as `client_metadata["x-codex-turn-metadata"]` on ResponsesAPI HTTP and websocket requests.\n\nThey are not sent as top-level ResponsesAPI `client_metadata` keys, and reserved keys such as `session_id`, `thread_id`, `turn_id`, and `window_id` cannot be overridden.',
+        ),
+    ] = None
     thread_id: Annotated[str, Field(alias="threadId")]
 
 
@@ -8830,6 +11757,37 @@ class ThreadGoalSetRequest(BaseModel):
     params: ThreadGoalSetParams
 
 
+class ThreadQueueAddRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[Literal["thread/queue/add"], Field(title="Thread/queue/addRequestMethod")]
+    params: ThreadQueueAddParams
+
+
+class ThreadQueueUpdateRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["thread/queue/update"], Field(title="Thread/queue/updateRequestMethod")
+    ]
+    params: ThreadQueueUpdateParams
+
+
+class ThreadSettingsUpdateRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["thread/settings/update"], Field(title="Thread/settings/updateRequestMethod")
+    ]
+    params: ThreadSettingsUpdateParams
+
+
 class ThreadListRequest(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -8837,6 +11795,60 @@ class ThreadListRequest(BaseModel):
     id: RequestId
     method: Annotated[Literal["thread/list"], Field(title="Thread/listRequestMethod")]
     params: ThreadListParams
+
+
+class ProjectListRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[Literal["project/list"], Field(title="Project/listRequestMethod")]
+    params: ProjectListParams
+
+
+class ProjectCreateRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[Literal["project/create"], Field(title="Project/createRequestMethod")]
+    params: ProjectCreateParams
+
+
+class ProjectImportRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[Literal["project/import"], Field(title="Project/importRequestMethod")]
+    params: ProjectImportParams
+
+
+class ThreadSearchRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[Literal["thread/search"], Field(title="Thread/searchRequestMethod")]
+    params: ThreadSearchParams
+
+
+class ThreadTurnsListRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[Literal["thread/turns/list"], Field(title="Thread/turns/listRequestMethod")]
+    params: ThreadTurnsListParams
+
+
+class PluginSearchRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[Literal["plugin/search"], Field(title="Plugin/searchRequestMethod")]
+    params: PluginSearchParams
 
 
 class PluginShareUpdateTargetsRequest(BaseModel):
@@ -8851,15 +11863,6 @@ class PluginShareUpdateTargetsRequest(BaseModel):
     params: PluginShareUpdateTargetsParams
 
 
-class TurnStartRequest(BaseModel):
-    model_config = ConfigDict(
-        populate_by_name=True,
-    )
-    id: RequestId
-    method: Annotated[Literal["turn/start"], Field(title="Turn/startRequestMethod")]
-    params: TurnStartParams
-
-
 class TurnSteerRequest(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -8867,6 +11870,29 @@ class TurnSteerRequest(BaseModel):
     id: RequestId
     method: Annotated[Literal["turn/steer"], Field(title="Turn/steerRequestMethod")]
     params: TurnSteerParams
+
+
+class ThreadRealtimeStartRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["thread/realtime/start"], Field(title="Thread/realtime/startRequestMethod")
+    ]
+    params: ThreadRealtimeStartParams
+
+
+class ThreadRealtimeAppendAudioRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[
+        Literal["thread/realtime/appendAudio"],
+        Field(title="Thread/realtime/appendAudioRequestMethod"),
+    ]
+    params: ThreadRealtimeAppendAudioParams
 
 
 class ReviewStartRequest(BaseModel):
@@ -8920,6 +11946,24 @@ class CommandExecResizeRequest(BaseModel):
     params: CommandExecResizeParams
 
 
+class ProcessSpawnRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[Literal["process/spawn"], Field(title="Process/spawnRequestMethod")]
+    params: ProcessSpawnParams
+
+
+class ProcessResizePtyRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[Literal["process/resizePty"], Field(title="Process/resizePtyRequestMethod")]
+    params: ProcessResizePtyParams
+
+
 class ConfigValueWriteRequest(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -8927,6 +11971,22 @@ class ConfigValueWriteRequest(BaseModel):
     id: RequestId
     method: Annotated[Literal["config/value/write"], Field(title="Config/value/writeRequestMethod")]
     params: ConfigValueWriteParams
+
+
+class CollaborationModeListResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    data: list[CollaborationModeMask]
+
+
+class ComputerUseConfig(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    default_app_access: AllowDenyRequirement | None = None
+    macos: ComputerUseMacosConfig | None = None
+    windows: ComputerUseWindowsConfig | None = None
 
 
 class Config(BaseModel):
@@ -8942,7 +12002,10 @@ class Config(BaseModel):
             description="[UNSTABLE] Optional default for where approval requests are routed for review."
         ),
     ] = None
+    apps: AppsConfig | None = None
+    browser_use: BrowserUseConfig | None = None
     compact_prompt: str | None = None
+    computer_use: ComputerUseConfig | None = None
     desktop: dict[str, Any] | None = None
     developer_instructions: str | None = None
     forced_chatgpt_workspace_id: ForcedChatgptWorkspaceIds | None = None
@@ -9140,6 +12203,23 @@ class GetAccountRateLimitsResponse(BaseModel):
     ] = None
 
 
+class GetAccountTokenUsageResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    daily_usage_buckets: Annotated[
+        list[AccountTokenUsageDailyBucket] | None, Field(alias="dailyUsageBuckets")
+    ] = None
+    summary: AccountTokenUsageSummary
+    thread_usage: Annotated[
+        ThreadUsage | None,
+        Field(
+            alias="threadUsage",
+            description="Estimated usage when a thread was requested and its billing route is available.",
+        ),
+    ] = None
+
+
 class GetWorkspaceMessagesResponse(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -9164,38 +12244,6 @@ class HookCompletedNotification(BaseModel):
     run: HookRunSummary
     thread_id: Annotated[str, Field(alias="threadId")]
     turn_id: Annotated[str | None, Field(alias="turnId")] = None
-
-
-class ItemCompletedNotification(BaseModel):
-    model_config = ConfigDict(
-        populate_by_name=True,
-    )
-    completed_at_ms: Annotated[
-        int,
-        Field(
-            alias="completedAtMs",
-            description="Unix timestamp (in milliseconds) when this item lifecycle completed.",
-        ),
-    ]
-    item: ThreadItem
-    thread_id: Annotated[str, Field(alias="threadId")]
-    turn_id: Annotated[str, Field(alias="turnId")]
-
-
-class ItemStartedNotification(BaseModel):
-    model_config = ConfigDict(
-        populate_by_name=True,
-    )
-    item: ThreadItem
-    started_at_ms: Annotated[
-        int,
-        Field(
-            alias="startedAtMs",
-            description="Unix timestamp (in milliseconds) when this item lifecycle started.",
-        ),
-    ]
-    thread_id: Annotated[str, Field(alias="threadId")]
-    turn_id: Annotated[str, Field(alias="turnId")]
 
 
 class ListMcpServerStatusResponse(BaseModel):
@@ -9325,9 +12373,11 @@ class FunctionCallOutputResponseItem(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
-    call_id: str
+    call_id: str | None = None
     id: str | None = None
     internal_chat_message_metadata_passthrough: InternalChatMessageMetadataPassthrough | None = None
+    name: str | None = None
+    namespace: str | None = None
     output: FunctionCallOutputBody
     type: Annotated[
         Literal["function_call_output"], Field(title="FunctionCallOutputResponseItemType")
@@ -9490,36 +12540,6 @@ class TurnPlanUpdatedServerNotification(BaseModel):
     params: TurnPlanUpdatedNotification
 
 
-class ItemStartedServerNotification(BaseModel):
-    model_config = ConfigDict(
-        populate_by_name=True,
-    )
-    emitted_at_ms: Annotated[
-        int | None,
-        Field(
-            alias="emittedAtMs",
-            description="Unix timestamp (in milliseconds) when app-server emitted this notification.",
-        ),
-    ] = None
-    method: Annotated[Literal["item/started"], Field(title="Item/startedNotificationMethod")]
-    params: ItemStartedNotification
-
-
-class ItemCompletedServerNotification(BaseModel):
-    model_config = ConfigDict(
-        populate_by_name=True,
-    )
-    emitted_at_ms: Annotated[
-        int | None,
-        Field(
-            alias="emittedAtMs",
-            description="Unix timestamp (in milliseconds) when app-server emitted this notification.",
-        ),
-    ] = None
-    method: Annotated[Literal["item/completed"], Field(title="Item/completedNotificationMethod")]
-    params: ItemCompletedNotification
-
-
 class ItemFileChangePatchUpdatedServerNotification(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -9609,6 +12629,42 @@ class ExternalAgentConfigImportCompletedServerNotification(BaseModel):
     params: ExternalAgentConfigImportCompletedNotification
 
 
+class ThreadRealtimeItemStartedServerNotification(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    emitted_at_ms: Annotated[
+        int | None,
+        Field(
+            alias="emittedAtMs",
+            description="Unix timestamp (in milliseconds) when app-server emitted this notification.",
+        ),
+    ] = None
+    method: Annotated[
+        Literal["thread/realtime/item/started"],
+        Field(title="Thread/realtime/item/startedNotificationMethod"),
+    ]
+    params: ThreadRealtimeItemStartedNotification
+
+
+class ThreadRealtimeItemCompletedServerNotification(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    emitted_at_ms: Annotated[
+        int | None,
+        Field(
+            alias="emittedAtMs",
+            description="Unix timestamp (in milliseconds) when app-server emitted this notification.",
+        ),
+    ] = None
+    method: Annotated[
+        Literal["thread/realtime/item/completed"],
+        Field(title="Thread/realtime/item/completedNotificationMethod"),
+    ]
+    params: ThreadRealtimeItemCompletedNotification
+
+
 class WindowsSandboxSetupCompletedServerNotification(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -9640,6 +12696,215 @@ class SessionSource(RootModel[SessionSourceValue | CustomSessionSource | SubAgen
         populate_by_name=True,
     )
     root: SessionSourceValue | CustomSessionSource | SubAgentSessionSource
+
+
+class FunctionCallOutputThreadItem(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: str
+    name: str
+    namespace: str | None = None
+    output: FunctionCallOutputBody
+    type: Annotated[Literal["functionCallOutput"], Field(title="FunctionCallOutputThreadItemType")]
+
+
+class ThreadItem(
+    RootModel[
+        UserMessageThreadItem
+        | HookPromptThreadItem
+        | AgentMessageThreadItem
+        | FunctionCallOutputThreadItem
+        | PlanThreadItem
+        | ReasoningThreadItem
+        | CommandExecutionThreadItem
+        | FileChangeThreadItem
+        | McpToolCallThreadItem
+        | DynamicToolCallThreadItem
+        | CollabAgentToolCallThreadItem
+        | SubAgentActivityThreadItem
+        | WebSearchThreadItem
+        | ImageViewThreadItem
+        | SleepThreadItem
+        | ImageGenerationThreadItem
+        | EnteredReviewModeThreadItem
+        | ExitedReviewModeThreadItem
+        | ContextCompactionThreadItem
+    ]
+):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    root: (
+        UserMessageThreadItem
+        | HookPromptThreadItem
+        | AgentMessageThreadItem
+        | FunctionCallOutputThreadItem
+        | PlanThreadItem
+        | ReasoningThreadItem
+        | CommandExecutionThreadItem
+        | FileChangeThreadItem
+        | McpToolCallThreadItem
+        | DynamicToolCallThreadItem
+        | CollabAgentToolCallThreadItem
+        | SubAgentActivityThreadItem
+        | WebSearchThreadItem
+        | ImageViewThreadItem
+        | SleepThreadItem
+        | ImageGenerationThreadItem
+        | EnteredReviewModeThreadItem
+        | ExitedReviewModeThreadItem
+        | ContextCompactionThreadItem
+    )
+
+
+class ThreadItemEntry(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    item: ThreadItem
+    turn_id: Annotated[str, Field(alias="turnId", description="Turn containing this item.")]
+
+
+class ThreadItemsListResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    backwards_cursor: Annotated[
+        str | None,
+        Field(
+            alias="backwardsCursor",
+            description="Opaque cursor to pass as `cursor` when reversing `sortDirection`. This is only populated when the page contains at least one item.",
+        ),
+    ] = None
+    data: list[ThreadItemEntry]
+    next_cursor: Annotated[
+        str | None,
+        Field(
+            alias="nextCursor",
+            description="Opaque cursor to pass to the next call to continue after the last item. if None, there are no more items to return.",
+        ),
+    ] = None
+
+
+class ThreadResumeParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    approval_policy: Annotated[AskForApproval | None, Field(alias="approvalPolicy")] = None
+    approvals_reviewer: Annotated[
+        ApprovalsReviewer | None,
+        Field(
+            alias="approvalsReviewer",
+            description="Override where approval requests are routed for review on this thread and subsequent turns.",
+        ),
+    ] = None
+    base_instructions: Annotated[str | None, Field(alias="baseInstructions")] = None
+    config: dict[str, Any] | None = None
+    cwd: str | None = None
+    developer_instructions: Annotated[str | None, Field(alias="developerInstructions")] = None
+    exclude_turns: Annotated[
+        bool | None,
+        Field(
+            alias="excludeTurns",
+            description="When true, return only thread metadata and live-resume state without populating `thread.turns`. This is useful when the client plans to call `thread/turns/list` immediately after resuming. Full-history hydration is deprecated for paginated threads; use this with `thread/turns/list` and `thread/items/list` instead.",
+        ),
+    ] = None
+    history: Annotated[
+        list[ResponseItem] | None,
+        Field(
+            description="[UNSTABLE] FOR CODEX CLOUD - DO NOT USE. If specified, the thread will be resumed with the provided history instead of loaded from disk."
+        ),
+    ] = None
+    initial_turns_page: Annotated[
+        ThreadResumeInitialTurnsPageParams | None,
+        Field(
+            alias="initialTurnsPage",
+            description="When present, include a `thread/turns/list` page in the resume response so clients can bootstrap recent turns without a second request.",
+        ),
+    ] = None
+    model: Annotated[
+        str | None, Field(description="Configuration overrides for the resumed thread, if any.")
+    ] = None
+    model_provider: Annotated[str | None, Field(alias="modelProvider")] = None
+    path: Annotated[
+        str | None,
+        Field(
+            description="[UNSTABLE] Specify the rollout path to resume from. If specified for a non-running thread, the thread_id param will be ignored. If thread_id identifies a running thread, the path must match the active rollout path."
+        ),
+    ] = None
+    permissions: Annotated[
+        str | None,
+        Field(
+            description="Named profile id for the resumed thread. Cannot be combined with `sandbox`."
+        ),
+    ] = None
+    personality: Personality | None = None
+    runtime_workspace_roots: Annotated[
+        list[AbsolutePathBuf] | None,
+        Field(
+            alias="runtimeWorkspaceRoots",
+            description="Replace the thread's runtime workspace roots. Paths must be absolute.",
+        ),
+    ] = None
+    sandbox: SandboxMode | None = None
+    service_tier: Annotated[str | None, Field(alias="serviceTier")] = None
+    thread_id: Annotated[str, Field(alias="threadId")]
+
+
+class ItemThreadTimelineEntry(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    item: ThreadItem
+    position: Annotated[int, Field(ge=0)]
+    turn_id: Annotated[str, Field(alias="turnId")]
+    type: Annotated[Literal["item"], Field(title="ItemThreadTimelineEntryType")]
+
+
+class TurnCompletedThreadTimelineEntry(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    completed_at: int | None = None
+    duration_ms: int | None = None
+    error: TurnError | None = None
+    position: Annotated[int, Field(ge=0)]
+    started_at: int | None = None
+    status: TurnStatus
+    turn_id: str
+    type: Annotated[Literal["turnCompleted"], Field(title="TurnCompletedThreadTimelineEntryType")]
+
+
+class ThreadTimelineEntry(
+    RootModel[
+        ItemThreadTimelineEntry
+        | RealtimeThreadTimelineEntry
+        | TurnStartedThreadTimelineEntry
+        | TurnCompletedThreadTimelineEntry
+    ]
+):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    root: Annotated[
+        ItemThreadTimelineEntry
+        | RealtimeThreadTimelineEntry
+        | TurnStartedThreadTimelineEntry
+        | TurnCompletedThreadTimelineEntry,
+        Field(description="EXPERIMENTAL - one item or turn boundary in canonical rollout order."),
+    ]
+
+
+class ThreadTimelineListResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    active_realtime_session_at_page_start: Annotated[
+        str | None, Field(alias="activeRealtimeSessionAtPageStart")
+    ] = None
+    data: list[ThreadTimelineEntry]
+    next_cursor: Annotated[str | None, Field(alias="nextCursor")] = None
 
 
 class Turn(BaseModel):
@@ -9705,6 +12970,15 @@ class TurnStartedNotification(BaseModel):
     turn: Turn
 
 
+class TurnToolOutput(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    name: str
+    namespace: str | None = None
+    output: FunctionCallOutputBody
+
+
 class TurnsPage(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -9730,6 +13004,15 @@ class AdditionalFileSystemPermissions(BaseModel):
     ] = None
 
 
+class ThreadResumeRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[Literal["thread/resume"], Field(title="Thread/resumeRequestMethod")]
+    params: ThreadResumeParams
+
+
 class PluginShareSaveRequest(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -9752,12 +13035,21 @@ class ConfigRequirements(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
+    additional_developer_instructions: Annotated[
+        str | None, Field(alias="additionalDeveloperInstructions")
+    ] = None
     allow_appshots: Annotated[bool | None, Field(alias="allowAppshots")] = None
+    allow_browser_and_computer_use: Annotated[
+        bool | None, Field(alias="allowBrowserAndComputerUse")
+    ] = None
     allow_login_shell: Annotated[bool | None, Field(alias="allowLoginShell")] = None
     allow_managed_hooks_only: Annotated[bool | None, Field(alias="allowManagedHooksOnly")] = None
     allow_remote_control: Annotated[bool | None, Field(alias="allowRemoteControl")] = None
     allowed_approval_policies: Annotated[
         list[AskForApproval] | None, Field(alias="allowedApprovalPolicies")
+    ] = None
+    allowed_approvals_reviewers: Annotated[
+        list[ApprovalsReviewer] | None, Field(alias="allowedApprovalsReviewers")
     ] = None
     allowed_permission_profiles: Annotated[
         dict[str, Any] | None, Field(alias="allowedPermissionProfiles")
@@ -9771,10 +13063,15 @@ class ConfigRequirements(BaseModel):
     allowed_windows_sandbox_implementations: Annotated[
         list[WindowsSandboxSetupMode] | None, Field(alias="allowedWindowsSandboxImplementations")
     ] = None
+    auto_review: Annotated[AutoReviewRequirements | None, Field(alias="autoReview")] = None
     browser_use: Annotated[BrowserUseRequirements | None, Field(alias="browserUse")] = None
+    chatgpt_base_url: Annotated[str | None, Field(alias="chatgptBaseUrl")] = None
     check_for_update_on_startup: Annotated[bool | None, Field(alias="checkForUpdateOnStartup")] = (
         None
     )
+    cli_auth_credentials_store: Annotated[
+        CliAuthCredentialsStoreMode | None, Field(alias="cliAuthCredentialsStore")
+    ] = None
     computer_use: Annotated[ComputerUseRequirements | None, Field(alias="computerUse")] = None
     default_permissions: Annotated[str | None, Field(alias="defaultPermissions")] = None
     enforce_residency: Annotated[ResidencyRequirement | None, Field(alias="enforceResidency")] = (
@@ -9784,9 +13081,12 @@ class ConfigRequirements(BaseModel):
         None
     )
     feedback: FeedbackRequirements | None = None
+    hooks: ManagedHooksRequirements | None = None
+    in_app_browser: Annotated[InAppBrowserRequirements | None, Field(alias="inAppBrowser")] = None
     log_dir: Annotated[str | None, Field(alias="logDir")] = None
     model_catalog_json: Annotated[str | None, Field(alias="modelCatalogJson")] = None
     models: ModelsRequirements | None = None
+    network: NetworkRequirements | None = None
     sqlite_home: Annotated[str | None, Field(alias="sqliteHome")] = None
     windows_sandbox_private_desktop: Annotated[
         bool | None, Field(alias="windowsSandboxPrivateDesktop")
@@ -9865,6 +13165,38 @@ class ExternalAgentConfigImportParams(BaseModel):
         str | None,
         Field(description="Optional identifier for the product that initiated the import."),
     ] = None
+
+
+class ItemCompletedNotification(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    completed_at_ms: Annotated[
+        int,
+        Field(
+            alias="completedAtMs",
+            description="Unix timestamp (in milliseconds) when this item lifecycle completed.",
+        ),
+    ]
+    item: ThreadItem
+    thread_id: Annotated[str, Field(alias="threadId")]
+    turn_id: Annotated[str, Field(alias="turnId")]
+
+
+class ItemStartedNotification(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    item: ThreadItem
+    started_at_ms: Annotated[
+        int,
+        Field(
+            alias="startedAtMs",
+            description="Unix timestamp (in milliseconds) when this item lifecycle started.",
+        ),
+    ]
+    thread_id: Annotated[str, Field(alias="threadId")]
+    turn_id: Annotated[str, Field(alias="turnId")]
 
 
 class PluginDetail(BaseModel):
@@ -9994,6 +13326,36 @@ class TurnCompletedServerNotification(BaseModel):
     params: TurnCompletedNotification
 
 
+class ItemStartedServerNotification(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    emitted_at_ms: Annotated[
+        int | None,
+        Field(
+            alias="emittedAtMs",
+            description="Unix timestamp (in milliseconds) when app-server emitted this notification.",
+        ),
+    ] = None
+    method: Annotated[Literal["item/started"], Field(title="Item/startedNotificationMethod")]
+    params: ItemStartedNotification
+
+
+class ItemCompletedServerNotification(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    emitted_at_ms: Annotated[
+        int | None,
+        Field(
+            alias="emittedAtMs",
+            description="Unix timestamp (in milliseconds) when app-server emitted this notification.",
+        ),
+    ] = None
+    method: Annotated[Literal["item/completed"], Field(title="Item/completedNotificationMethod")]
+    params: ItemCompletedNotification
+
+
 class Thread(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -10010,6 +13372,13 @@ class Thread(BaseModel):
         Field(
             alias="agentRole",
             description="Optional role (agent_role) assigned to an AgentControl-spawned sub-agent.",
+        ),
+    ] = None
+    can_accept_direct_input: Annotated[
+        bool | None,
+        Field(
+            alias="canAcceptDirectInput",
+            description="Whether the app server accepts direct turn input for this loaded thread. `None` means the capability is unavailable, such as for an unloaded stored thread.",
         ),
     ] = None
     cli_version: Annotated[
@@ -10029,6 +13398,9 @@ class Thread(BaseModel):
             description="Whether the thread is ephemeral and should not be materialized on disk."
         ),
     ]
+    extra: Annotated[
+        ThreadExtra | None, Field(description="Optional implementation-specific thread data.")
+    ] = None
     forked_from_id: Annotated[
         str | None,
         Field(
@@ -10043,6 +13415,13 @@ class Thread(BaseModel):
             description="Optional Git metadata captured when the thread was created.",
         ),
     ] = None
+    history_mode: Annotated[
+        ThreadHistoryMode | None,
+        Field(
+            alias="historyMode",
+            description="Persisted thread history contract selected when this thread was created.",
+        ),
+    ] = "legacy"
     id: Annotated[
         str, Field(description="Identifier for this thread. Codex-generated thread IDs are UUIDv7.")
     ]
@@ -10065,6 +13444,13 @@ class Thread(BaseModel):
     preview: Annotated[
         str, Field(description="Usually the first user message in the thread, if available.")
     ]
+    project_id: Annotated[
+        str | None,
+        Field(
+            alias="projectId",
+            description="Canonical project assignment owned by app-server, if any.",
+        ),
+    ] = None
     recency_at: Annotated[
         int | None,
         Field(
@@ -10123,6 +13509,13 @@ class ThreadForkResponse(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
+    active_permission_profile: Annotated[
+        ActivePermissionProfile | None,
+        Field(
+            alias="activePermissionProfile",
+            description="Named or implicit built-in profile that produced the active permissions, when known.",
+        ),
+    ] = None
     approval_policy: Annotated[AskForApproval, Field(alias="approvalPolicy")]
     approvals_reviewer: Annotated[
         ApprovalsReviewer,
@@ -10141,7 +13534,21 @@ class ThreadForkResponse(BaseModel):
     ] = []
     model: str
     model_provider: Annotated[str, Field(alias="modelProvider")]
+    multi_agent_mode: Annotated[
+        MultiAgentMode | None,
+        Field(
+            alias="multiAgentMode",
+            description="@deprecated Always `explicitRequestOnly`. Use `reasoningEffort` for Ultra behavior.",
+        ),
+    ] = "explicitRequestOnly"
     reasoning_effort: Annotated[ReasoningEffort | None, Field(alias="reasoningEffort")] = None
+    runtime_workspace_roots: Annotated[
+        list[AbsolutePathBuf] | None,
+        Field(
+            alias="runtimeWorkspaceRoots",
+            description="Thread-scoped runtime workspace roots used to materialize `:workspace_roots`.",
+        ),
+    ] = []
     sandbox: Annotated[
         SandboxPolicy,
         Field(
@@ -10180,6 +13587,13 @@ class ThreadMetadataUpdateResponse(BaseModel):
     thread: Thread
 
 
+class ThreadQueueStartResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    turn: Turn
+
+
 class ThreadReadResponse(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
@@ -10191,6 +13605,13 @@ class ThreadResumeResponse(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
+    active_permission_profile: Annotated[
+        ActivePermissionProfile | None,
+        Field(
+            alias="activePermissionProfile",
+            description="Named or implicit built-in profile that produced the active permissions, when known.",
+        ),
+    ] = None
     approval_policy: Annotated[AskForApproval, Field(alias="approvalPolicy")]
     approvals_reviewer: Annotated[
         ApprovalsReviewer,
@@ -10200,6 +13621,13 @@ class ThreadResumeResponse(BaseModel):
         ),
     ]
     cwd: AbsolutePathBuf
+    initial_turns_page: Annotated[
+        TurnsPage | None,
+        Field(
+            alias="initialTurnsPage",
+            description="`thread/turns/list` page returned when requested by `initialTurnsPage`.",
+        ),
+    ] = None
     instruction_sources: Annotated[
         list[LegacyAppPathString] | None,
         Field(
@@ -10207,9 +13635,30 @@ class ThreadResumeResponse(BaseModel):
             description="Environment-native paths to instruction source files currently loaded for this thread.",
         ),
     ] = []
+    items_backwards_cursor: Annotated[
+        str | None,
+        Field(
+            alias="itemsBackwardsCursor",
+            description='Opaque cursor for hydrating paginated items backwards.\n\nPass this as `cursor` to `thread/items/list` with `sortDirection: "desc"`. The first page includes the item identified by the cursor.',
+        ),
+    ] = None
     model: str
     model_provider: Annotated[str, Field(alias="modelProvider")]
+    multi_agent_mode: Annotated[
+        MultiAgentMode | None,
+        Field(
+            alias="multiAgentMode",
+            description="@deprecated Always `explicitRequestOnly`. Use `reasoningEffort` for Ultra behavior.",
+        ),
+    ] = "explicitRequestOnly"
     reasoning_effort: Annotated[ReasoningEffort | None, Field(alias="reasoningEffort")] = None
+    runtime_workspace_roots: Annotated[
+        list[AbsolutePathBuf] | None,
+        Field(
+            alias="runtimeWorkspaceRoots",
+            description="Thread-scoped runtime workspace roots used to materialize `:workspace_roots`.",
+        ),
+    ] = []
     sandbox: Annotated[
         SandboxPolicy,
         Field(
@@ -10218,6 +13667,39 @@ class ThreadResumeResponse(BaseModel):
     ]
     service_tier: Annotated[str | None, Field(alias="serviceTier")] = None
     thread: Thread
+    turns_backwards_cursor: Annotated[
+        str | None,
+        Field(
+            alias="turnsBackwardsCursor",
+            description='Opaque cursor for hydrating paginated turns backwards.\n\nPass this as `cursor` to `thread/turns/list` with `sortDirection: "desc"`. The first page includes the turn identified by the cursor.',
+        ),
+    ] = None
+
+
+class ThreadRevertResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    items_backwards_cursor: Annotated[
+        str | None,
+        Field(
+            alias="itemsBackwardsCursor",
+            description='Opaque cursor for hydrating paginated items backwards.\n\nPass this as `cursor` to `thread/items/list` with `sortDirection: "desc"`. The first page includes the item identified by the cursor.',
+        ),
+    ] = None
+    thread: Annotated[
+        Thread,
+        Field(
+            description="Updated loaded thread metadata. `turns` is always empty; hydrate retained history through `thread/turns/list`."
+        ),
+    ]
+    turns_backwards_cursor: Annotated[
+        str | None,
+        Field(
+            alias="turnsBackwardsCursor",
+            description='Opaque cursor for hydrating paginated turns backwards.\n\nPass this as `cursor` to `thread/turns/list` with `sortDirection: "desc"`. The first page includes the turn identified by the cursor.',
+        ),
+    ] = None
 
 
 class ThreadRollbackResponse(BaseModel):
@@ -10244,6 +13726,13 @@ class ThreadStartResponse(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
+    active_permission_profile: Annotated[
+        ActivePermissionProfile | None,
+        Field(
+            alias="activePermissionProfile",
+            description="Named or implicit built-in profile that produced the active permissions, when known.",
+        ),
+    ] = None
     approval_policy: Annotated[AskForApproval, Field(alias="approvalPolicy")]
     approvals_reviewer: Annotated[
         ApprovalsReviewer,
@@ -10262,7 +13751,21 @@ class ThreadStartResponse(BaseModel):
     ] = []
     model: str
     model_provider: Annotated[str, Field(alias="modelProvider")]
+    multi_agent_mode: Annotated[
+        MultiAgentMode | None,
+        Field(
+            alias="multiAgentMode",
+            description="@deprecated Always `explicitRequestOnly`. Use `reasoningEffort` for Ultra behavior.",
+        ),
+    ] = "explicitRequestOnly"
     reasoning_effort: Annotated[ReasoningEffort | None, Field(alias="reasoningEffort")] = None
+    runtime_workspace_roots: Annotated[
+        list[AbsolutePathBuf] | None,
+        Field(
+            alias="runtimeWorkspaceRoots",
+            description="Thread-scoped runtime workspace roots used to materialize `:workspace_roots`.",
+        ),
+    ] = []
     sandbox: Annotated[
         SandboxPolicy,
         Field(
@@ -10280,11 +13783,173 @@ class ThreadStartedNotification(BaseModel):
     thread: Thread
 
 
+class ThreadTurnsListResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    backwards_cursor: Annotated[
+        str | None,
+        Field(
+            alias="backwardsCursor",
+            description="Opaque cursor to pass as `cursor` when reversing `sortDirection`. This is only populated when the page contains at least one turn. Use it with the opposite `sortDirection` to include the anchor turn again and catch updates to that turn.",
+        ),
+    ] = None
+    data: list[Turn]
+    next_cursor: Annotated[
+        str | None,
+        Field(
+            alias="nextCursor",
+            description="Opaque cursor to pass to the next call to continue after the last turn. if None, there are no more turns to return.",
+        ),
+    ] = None
+
+
 class ThreadUnarchiveResponse(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
     thread: Thread
+
+
+class TurnStartParams(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    additional_context: Annotated[
+        dict[str, Any] | None,
+        Field(
+            alias="additionalContext",
+            description="Optional client-provided context fragments keyed by an opaque source identifier.",
+        ),
+    ] = None
+    approval_policy: Annotated[
+        AskForApproval | None,
+        Field(
+            alias="approvalPolicy",
+            description="Override the approval policy for this turn and subsequent turns.",
+        ),
+    ] = None
+    approvals_reviewer: Annotated[
+        ApprovalsReviewer | None,
+        Field(
+            alias="approvalsReviewer",
+            description="Override where approval requests are routed for review on this turn and subsequent turns.",
+        ),
+    ] = None
+    client_user_message_id: Annotated[str | None, Field(alias="clientUserMessageId")] = None
+    collaboration_mode: Annotated[
+        CollaborationMode | None,
+        Field(
+            alias="collaborationMode",
+            description='EXPERIMENTAL - Set a pre-set collaboration mode. Takes precedence over model, reasoning_effort, and developer instructions if set.\n\nFor `collaboration_mode.settings.developer_instructions`, `null` means "use the built-in instructions for the selected mode".',
+        ),
+    ] = None
+    cwd: Annotated[
+        str | None,
+        Field(description="Override the working directory for this turn and subsequent turns."),
+    ] = None
+    cyber_access_program: Annotated[
+        CyberAccessProgram | None,
+        Field(
+            alias="cyberAccessProgram",
+            description="EXPERIMENTAL - Request a workspace-authorized cyber program for this turn. Omission preserves automatic behavior. This does not grant access.",
+        ),
+    ] = None
+    effort: Annotated[
+        ReasoningEffort | None,
+        Field(description="Override the reasoning effort for this turn and subsequent turns."),
+    ] = None
+    environments: Annotated[
+        list[TurnEnvironmentParams] | None,
+        Field(
+            description="Optional environments for this turn and subsequent turns.\n\nOmitted uses the thread sticky environments. Empty disables environment access for this turn. Non-empty selects the first environment as the current turn environment for this turn."
+        ),
+    ] = None
+    input: list[UserInput]
+    model: Annotated[
+        str | None, Field(description="Override the model for this turn and subsequent turns.")
+    ] = None
+    multi_agent_mode: Annotated[
+        MultiAgentMode | None,
+        Field(
+            alias="multiAgentMode",
+            description='@deprecated Ignored. Use `effort: "ultra"` for proactive multi-agent behavior.',
+        ),
+    ] = None
+    output_schema: Annotated[
+        Any | None,
+        Field(
+            alias="outputSchema",
+            description="Optional JSON Schema used to constrain the final assistant message for this turn.",
+        ),
+    ] = None
+    permissions: Annotated[
+        str | None,
+        Field(
+            description="Select a named permissions profile id for this turn and subsequent turns. Cannot be combined with `sandboxPolicy`."
+        ),
+    ] = None
+    personality: Annotated[
+        Personality | None,
+        Field(description="Override the personality for this turn and subsequent turns."),
+    ] = None
+    responsesapi_client_metadata: Annotated[
+        dict[str, Any] | None,
+        Field(
+            alias="responsesapiClientMetadata",
+            description='Optional metadata to enrich Codex\'s ResponsesAPI turn metadata.\n\nEntries are flattened into the JSON string sent as `client_metadata["x-codex-turn-metadata"]` on ResponsesAPI HTTP and websocket requests.\n\nThey are not sent as top-level ResponsesAPI `client_metadata` keys, and reserved keys such as `session_id`, `thread_id`, `turn_id`, and `window_id` cannot be overridden.',
+        ),
+    ] = None
+    runtime_workspace_roots: Annotated[
+        list[AbsolutePathBuf] | None,
+        Field(
+            alias="runtimeWorkspaceRoots",
+            description="Replace the thread's runtime workspace roots for this turn and subsequent turns. Paths must be absolute.",
+        ),
+    ] = None
+    sandbox_policy: Annotated[
+        SandboxPolicy | None,
+        Field(
+            alias="sandboxPolicy",
+            description="Override the sandbox policy for this turn and subsequent turns.",
+        ),
+    ] = None
+    service_tier: Annotated[
+        str | None,
+        Field(
+            alias="serviceTier",
+            description="Override the service tier for this turn and subsequent turns.",
+        ),
+    ] = None
+    service_tier_for_turn: Annotated[
+        str | None,
+        Field(
+            alias="serviceTierForTurn",
+            description="Override the service tier only when this request starts a new turn. Use \"default\" for standard speed. Omitted or null inherits the thread's tier. Does not change the thread's tier or a turn being steered.",
+        ),
+    ] = None
+    summary: Annotated[
+        ReasoningSummary | None,
+        Field(description="Override the reasoning summary for this turn and subsequent turns."),
+    ] = None
+    thread_id: Annotated[str, Field(alias="threadId")]
+    tool_output: Annotated[TurnToolOutput | None, Field(alias="toolOutput")] = None
+    turn_trigger: Annotated[
+        str | None,
+        Field(
+            alias="turnTrigger",
+            description="Optional source classification for the caller that starts this turn. Ignored when this request steers an already-active turn.",
+        ),
+    ] = None
+
+
+class TurnStartRequest(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    id: RequestId
+    method: Annotated[Literal["turn/start"], Field(title="Turn/startRequestMethod")]
+    params: TurnStartParams
 
 
 class ExternalAgentConfigImportRequest(BaseModel):
@@ -10314,30 +13979,57 @@ class ExternalAgentConfigImportRecordHistoryRequest(BaseModel):
 class ClientRequest(
     RootModel[
         InitializeRequest
+        | ServerDiagnosticsRequest
         | ThreadStartRequest
         | ThreadResumeRequest
         | ThreadForkRequest
         | ThreadArchiveRequest
         | ThreadDeleteRequest
         | ThreadUnsubscribeRequest
+        | ThreadIncrementElicitationRequest
+        | ThreadDecrementElicitationRequest
         | ThreadNameSetRequest
         | ThreadGoalSetRequest
         | ThreadGoalGetRequest
         | ThreadGoalClearRequest
+        | ThreadQueueAddRequest
+        | ThreadQueueListRequest
+        | ThreadQueueUpdateRequest
+        | ThreadQueueDeleteRequest
+        | ThreadQueueReorderRequest
+        | ThreadQueueStartRequest
         | ThreadMetadataUpdateRequest
         | ThreadSectionMoveRequest
+        | ThreadSettingsUpdateRequest
+        | ThreadMemoryModeSetRequest
+        | MemoryResetRequest
         | ThreadUnarchiveRequest
         | ThreadCompactStartRequest
         | ThreadShellCommandRequest
         | ThreadApproveGuardianDeniedActionRequest
+        | ThreadBackgroundTerminalsCleanRequest
+        | ThreadBackgroundTerminalsListRequest
+        | ThreadBackgroundTerminalsTerminateRequest
         | ThreadRollbackRequest
+        | ThreadRevertRequest
         | ThreadListRequest
+        | ProjectListRequest
+        | ProjectReadRequest
+        | ProjectCreateRequest
+        | ProjectImportRequest
+        | ProjectUpdateRequest
+        | ProjectMoveRequest
+        | ProjectDeleteRequest
         | ThreadSectionListRequest
         | ThreadSectionCreateRequest
         | ThreadSectionUpdateRequest
         | ThreadSectionDeleteRequest
+        | ThreadSearchRequest
+        | ThreadSearchOccurrencesRequest
         | ThreadLoadedListRequest
         | ThreadReadRequest
+        | ThreadTurnsListRequest
+        | ThreadItemsListRequest
         | ThreadInjectItemsRequest
         | SkillsListRequest
         | SkillsExtraRootsSetRequest
@@ -10346,6 +14038,7 @@ class ClientRequest(
         | MarketplaceRemoveRequest
         | MarketplaceUpgradeRequest
         | PluginListRequest
+        | PluginSearchRequest
         | PluginInstalledRequest
         | PluginReadRequest
         | PluginSkillReadRequest
@@ -10370,22 +14063,46 @@ class ClientRequest(
         | PluginInstallRequest
         | PluginUninstallRequest
         | TurnStartRequest
+        | TurnSettingsUpdateRequest
         | TurnSteerRequest
         | TurnInterruptRequest
+        | ThreadRealtimeStartRequest
+        | ThreadRealtimeAppendAudioRequest
+        | ThreadRealtimeAppendTextRequest
+        | ThreadRealtimeAppendSpeechRequest
+        | ThreadRealtimeStopRequest
+        | ThreadTimelineListRequest
+        | ThreadRealtimeListVoicesRequest
         | ReviewStartRequest
         | ModelListRequest
         | ModelProviderCapabilitiesReadRequest
         | ExperimentalFeatureListRequest
         | PermissionProfileListRequest
         | ExperimentalFeatureEnablementSetRequest
+        | RemoteControlEnableRequest
+        | RemoteControlDisableRequest
+        | RemoteControlStatusReadRequest
+        | RemoteControlPairingStartRequest
+        | RemoteControlPairingStatusRequest
+        | RemoteControlClientListRequest
+        | RemoteControlClientRevokeRequest
+        | CollaborationModeListRequest
+        | MockExperimentalMethodRequest
+        | EnvironmentAddRequest
+        | EnvironmentInfoRequest
+        | EnvironmentStatusRequest
         | McpServerOauthLoginRequest
         | ConfigMcpServerReloadRequest
         | McpServerStatusListRequest
         | McpServerResourceReadRequest
+        | McpServerEventStreamStartRequest
+        | McpServerEventStreamStopRequest
         | McpServerToolCallRequest
         | WindowsSandboxSetupStartRequest
         | WindowsSandboxReadinessRequest
         | AccountLoginStartRequest
+        | AccountBedrockDiscoverRequest
+        | AccountBedrockSetupRequest
         | AccountLoginCancelRequest
         | AccountLogoutRequest
         | AccountRateLimitsReadRequest
@@ -10398,6 +14115,10 @@ class ClientRequest(
         | CommandExecWriteRequest
         | CommandExecTerminateRequest
         | CommandExecResizeRequest
+        | ProcessSpawnRequest
+        | ProcessWriteStdinRequest
+        | ProcessKillRequest
+        | ProcessResizePtyRequest
         | ConfigReadRequest
         | ExternalAgentConfigDetectRequest
         | ExternalAgentConfigImportRequest
@@ -10408,6 +14129,9 @@ class ClientRequest(
         | ConfigRequirementsReadRequest
         | AccountReadRequest
         | FuzzyFileSearchRequest
+        | FuzzyFileSearchSessionStartRequest
+        | FuzzyFileSearchSessionUpdateRequest
+        | FuzzyFileSearchSessionStopRequest
     ]
 ):
     model_config = ConfigDict(
@@ -10415,30 +14139,57 @@ class ClientRequest(
     )
     root: Annotated[
         InitializeRequest
+        | ServerDiagnosticsRequest
         | ThreadStartRequest
         | ThreadResumeRequest
         | ThreadForkRequest
         | ThreadArchiveRequest
         | ThreadDeleteRequest
         | ThreadUnsubscribeRequest
+        | ThreadIncrementElicitationRequest
+        | ThreadDecrementElicitationRequest
         | ThreadNameSetRequest
         | ThreadGoalSetRequest
         | ThreadGoalGetRequest
         | ThreadGoalClearRequest
+        | ThreadQueueAddRequest
+        | ThreadQueueListRequest
+        | ThreadQueueUpdateRequest
+        | ThreadQueueDeleteRequest
+        | ThreadQueueReorderRequest
+        | ThreadQueueStartRequest
         | ThreadMetadataUpdateRequest
         | ThreadSectionMoveRequest
+        | ThreadSettingsUpdateRequest
+        | ThreadMemoryModeSetRequest
+        | MemoryResetRequest
         | ThreadUnarchiveRequest
         | ThreadCompactStartRequest
         | ThreadShellCommandRequest
         | ThreadApproveGuardianDeniedActionRequest
+        | ThreadBackgroundTerminalsCleanRequest
+        | ThreadBackgroundTerminalsListRequest
+        | ThreadBackgroundTerminalsTerminateRequest
         | ThreadRollbackRequest
+        | ThreadRevertRequest
         | ThreadListRequest
+        | ProjectListRequest
+        | ProjectReadRequest
+        | ProjectCreateRequest
+        | ProjectImportRequest
+        | ProjectUpdateRequest
+        | ProjectMoveRequest
+        | ProjectDeleteRequest
         | ThreadSectionListRequest
         | ThreadSectionCreateRequest
         | ThreadSectionUpdateRequest
         | ThreadSectionDeleteRequest
+        | ThreadSearchRequest
+        | ThreadSearchOccurrencesRequest
         | ThreadLoadedListRequest
         | ThreadReadRequest
+        | ThreadTurnsListRequest
+        | ThreadItemsListRequest
         | ThreadInjectItemsRequest
         | SkillsListRequest
         | SkillsExtraRootsSetRequest
@@ -10447,6 +14198,7 @@ class ClientRequest(
         | MarketplaceRemoveRequest
         | MarketplaceUpgradeRequest
         | PluginListRequest
+        | PluginSearchRequest
         | PluginInstalledRequest
         | PluginReadRequest
         | PluginSkillReadRequest
@@ -10471,22 +14223,46 @@ class ClientRequest(
         | PluginInstallRequest
         | PluginUninstallRequest
         | TurnStartRequest
+        | TurnSettingsUpdateRequest
         | TurnSteerRequest
         | TurnInterruptRequest
+        | ThreadRealtimeStartRequest
+        | ThreadRealtimeAppendAudioRequest
+        | ThreadRealtimeAppendTextRequest
+        | ThreadRealtimeAppendSpeechRequest
+        | ThreadRealtimeStopRequest
+        | ThreadTimelineListRequest
+        | ThreadRealtimeListVoicesRequest
         | ReviewStartRequest
         | ModelListRequest
         | ModelProviderCapabilitiesReadRequest
         | ExperimentalFeatureListRequest
         | PermissionProfileListRequest
         | ExperimentalFeatureEnablementSetRequest
+        | RemoteControlEnableRequest
+        | RemoteControlDisableRequest
+        | RemoteControlStatusReadRequest
+        | RemoteControlPairingStartRequest
+        | RemoteControlPairingStatusRequest
+        | RemoteControlClientListRequest
+        | RemoteControlClientRevokeRequest
+        | CollaborationModeListRequest
+        | MockExperimentalMethodRequest
+        | EnvironmentAddRequest
+        | EnvironmentInfoRequest
+        | EnvironmentStatusRequest
         | McpServerOauthLoginRequest
         | ConfigMcpServerReloadRequest
         | McpServerStatusListRequest
         | McpServerResourceReadRequest
+        | McpServerEventStreamStartRequest
+        | McpServerEventStreamStopRequest
         | McpServerToolCallRequest
         | WindowsSandboxSetupStartRequest
         | WindowsSandboxReadinessRequest
         | AccountLoginStartRequest
+        | AccountBedrockDiscoverRequest
+        | AccountBedrockSetupRequest
         | AccountLoginCancelRequest
         | AccountLogoutRequest
         | AccountRateLimitsReadRequest
@@ -10499,6 +14275,10 @@ class ClientRequest(
         | CommandExecWriteRequest
         | CommandExecTerminateRequest
         | CommandExecResizeRequest
+        | ProcessSpawnRequest
+        | ProcessWriteStdinRequest
+        | ProcessKillRequest
+        | ProcessResizePtyRequest
         | ConfigReadRequest
         | ExternalAgentConfigDetectRequest
         | ExternalAgentConfigImportRequest
@@ -10508,7 +14288,10 @@ class ClientRequest(
         | ConfigBatchWriteRequest
         | ConfigRequirementsReadRequest
         | AccountReadRequest
-        | FuzzyFileSearchRequest,
+        | FuzzyFileSearchRequest
+        | FuzzyFileSearchSessionStartRequest
+        | FuzzyFileSearchSessionUpdateRequest
+        | FuzzyFileSearchSessionStopRequest,
         Field(description="Request from the client to the server.", title="ClientRequest"),
     ]
 
@@ -10529,6 +14312,7 @@ class GuardianApprovalReviewAction(
     RootModel[
         CommandGuardianApprovalReviewAction
         | ExecveGuardianApprovalReviewAction
+        | WriteStdinGuardianApprovalReviewAction
         | ApplyPatchGuardianApprovalReviewAction
         | NetworkAccessGuardianApprovalReviewAction
         | McpToolCallGuardianApprovalReviewAction
@@ -10541,6 +14325,7 @@ class GuardianApprovalReviewAction(
     root: (
         CommandGuardianApprovalReviewAction
         | ExecveGuardianApprovalReviewAction
+        | WriteStdinGuardianApprovalReviewAction
         | ApplyPatchGuardianApprovalReviewAction
         | NetworkAccessGuardianApprovalReviewAction
         | McpToolCallGuardianApprovalReviewAction
@@ -10576,7 +14361,7 @@ class ItemGuardianApprovalReviewCompletedNotification(BaseModel):
         str | None,
         Field(
             alias="targetItemId",
-            description="Identifier for the reviewed item or tool call when one exists.\n\nIn most cases, one review maps to one target item. The exceptions are - execve reviews, where a single command may contain multiple execve calls to review (only possible when using the shell_zsh_fork feature) - network policy reviews, where there is no target item\n\nA network call is triggered by a CommandExecution item, so having a target_item_id set to the CommandExecution item would be misleading because the review is about the network call, not the command execution. Therefore, target_item_id is set to None for network policy reviews.",
+            description="Identifier for the reviewed item or tool call when one exists.\n\nIn most cases, one review maps to one target item. The exceptions are - execve reviews, where a single command may contain multiple execve calls to review (only possible when using the shell_zsh_fork feature) - stdin reviews, which refer to the existing parent command item and have a separate approval ID in the action payload - network policy reviews, where there is no target item\n\nA network call is triggered by a CommandExecution item, so having a target_item_id set to the CommandExecution item would be misleading because the review is about the network call, not the command execution. Therefore, target_item_id is set to None for network policy reviews.",
         ),
     ] = None
     thread_id: Annotated[str, Field(alias="threadId")]
@@ -10603,7 +14388,7 @@ class ItemGuardianApprovalReviewStartedNotification(BaseModel):
         str | None,
         Field(
             alias="targetItemId",
-            description="Identifier for the reviewed item or tool call when one exists.\n\nIn most cases, one review maps to one target item. The exceptions are - execve reviews, where a single command may contain multiple execve calls to review (only possible when using the shell_zsh_fork feature) - network policy reviews, where there is no target item\n\nA network call is triggered by a CommandExecution item, so having a target_item_id set to the CommandExecution item would be misleading because the review is about the network call, not the command execution. Therefore, target_item_id is set to None for network policy reviews.",
+            description="Identifier for the reviewed item or tool call when one exists.\n\nIn most cases, one review maps to one target item. The exceptions are - execve reviews, where a single command may contain multiple execve calls to review (only possible when using the shell_zsh_fork feature) - stdin reviews, which refer to the existing parent command item and have a separate approval ID in the action payload - network policy reviews, where there is no target item\n\nA network call is triggered by a CommandExecution item, so having a target_item_id set to the CommandExecution item would be misleading because the review is about the network call, not the command execution. Therefore, target_item_id is set to None for network policy reviews.",
         ),
     ] = None
     thread_id: Annotated[str, Field(alias="threadId")]
@@ -10629,6 +14414,14 @@ class PluginListResponse(BaseModel):
         list[MarketplaceLoadErrorInfo] | None, Field(alias="marketplaceLoadErrors")
     ] = []
     marketplaces: list[PluginMarketplaceEntry]
+
+
+class PluginSearchResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    data: list[PluginSearchResult]
+    next_cursor: Annotated[str | None, Field(alias="nextCursor")] = None
 
 
 class ThreadStartedServerNotification(BaseModel):
@@ -10691,10 +14484,14 @@ class ServerNotification(
         | ThreadDeletedServerNotification
         | ThreadUnarchivedServerNotification
         | ThreadClosedServerNotification
+        | ThreadRevertedServerNotification
         | SkillsChangedServerNotification
         | ThreadNameUpdatedServerNotification
         | ThreadGoalUpdatedServerNotification
         | ThreadGoalClearedServerNotification
+        | ThreadQueueChangedServerNotification
+        | ProjectChangedServerNotification
+        | ThreadProjectUpdatedServerNotification
         | ThreadEnvironmentConnectedServerNotification
         | ThreadEnvironmentDisconnectedServerNotification
         | ThreadSettingsUpdatedServerNotification
@@ -10708,6 +14505,7 @@ class ServerNotification(
         | ItemStartedServerNotification
         | ItemAutoApprovalReviewStartedServerNotification
         | ItemAutoApprovalReviewCompletedServerNotification
+        | AutoApprovalReviewStrictReviewRequiredServerNotification
         | ItemCompletedServerNotification
         | ItemAgentMessageDeltaServerNotification
         | ItemPlanDeltaServerNotification
@@ -10722,6 +14520,7 @@ class ServerNotification(
         | ItemMcpToolCallProgressServerNotification
         | McpServerOauthLoginCompletedServerNotification
         | McpServerStartupStatusUpdatedServerNotification
+        | McpServerEventStreamNotificationServerNotification
         | AccountUpdatedServerNotification
         | AccountRateLimitsUpdatedServerNotification
         | AppListUpdatedServerNotification
@@ -10735,6 +14534,8 @@ class ServerNotification(
         | ThreadCompactedServerNotification
         | ModelReroutedServerNotification
         | ModelVerificationServerNotification
+        | ModelProviderAuthRecoveryStartedServerNotification
+        | ModelProviderAuthRecoveryCompletedServerNotification
         | TurnModerationMetadataServerNotification
         | ModelSafetyBufferingUpdatedServerNotification
         | WarningServerNotification
@@ -10745,6 +14546,9 @@ class ServerNotification(
         | FuzzyFileSearchSessionCompletedServerNotification
         | ThreadRealtimeStartedServerNotification
         | ThreadRealtimeItemAddedServerNotification
+        | ThreadRealtimeItemStartedServerNotification
+        | ThreadRealtimeItemTranscriptDeltaServerNotification
+        | ThreadRealtimeItemCompletedServerNotification
         | ThreadRealtimeTranscriptDeltaServerNotification
         | ThreadRealtimeTranscriptDoneServerNotification
         | ThreadRealtimeOutputAudioDeltaServerNotification
@@ -10767,10 +14571,14 @@ class ServerNotification(
         | ThreadDeletedServerNotification
         | ThreadUnarchivedServerNotification
         | ThreadClosedServerNotification
+        | ThreadRevertedServerNotification
         | SkillsChangedServerNotification
         | ThreadNameUpdatedServerNotification
         | ThreadGoalUpdatedServerNotification
         | ThreadGoalClearedServerNotification
+        | ThreadQueueChangedServerNotification
+        | ProjectChangedServerNotification
+        | ThreadProjectUpdatedServerNotification
         | ThreadEnvironmentConnectedServerNotification
         | ThreadEnvironmentDisconnectedServerNotification
         | ThreadSettingsUpdatedServerNotification
@@ -10784,6 +14592,7 @@ class ServerNotification(
         | ItemStartedServerNotification
         | ItemAutoApprovalReviewStartedServerNotification
         | ItemAutoApprovalReviewCompletedServerNotification
+        | AutoApprovalReviewStrictReviewRequiredServerNotification
         | ItemCompletedServerNotification
         | ItemAgentMessageDeltaServerNotification
         | ItemPlanDeltaServerNotification
@@ -10798,6 +14607,7 @@ class ServerNotification(
         | ItemMcpToolCallProgressServerNotification
         | McpServerOauthLoginCompletedServerNotification
         | McpServerStartupStatusUpdatedServerNotification
+        | McpServerEventStreamNotificationServerNotification
         | AccountUpdatedServerNotification
         | AccountRateLimitsUpdatedServerNotification
         | AppListUpdatedServerNotification
@@ -10811,6 +14621,8 @@ class ServerNotification(
         | ThreadCompactedServerNotification
         | ModelReroutedServerNotification
         | ModelVerificationServerNotification
+        | ModelProviderAuthRecoveryStartedServerNotification
+        | ModelProviderAuthRecoveryCompletedServerNotification
         | TurnModerationMetadataServerNotification
         | ModelSafetyBufferingUpdatedServerNotification
         | WarningServerNotification
@@ -10821,6 +14633,9 @@ class ServerNotification(
         | FuzzyFileSearchSessionCompletedServerNotification
         | ThreadRealtimeStartedServerNotification
         | ThreadRealtimeItemAddedServerNotification
+        | ThreadRealtimeItemStartedServerNotification
+        | ThreadRealtimeItemTranscriptDeltaServerNotification
+        | ThreadRealtimeItemCompletedServerNotification
         | ThreadRealtimeTranscriptDeltaServerNotification
         | ThreadRealtimeTranscriptDoneServerNotification
         | ThreadRealtimeOutputAudioDeltaServerNotification
@@ -10835,3 +14650,24 @@ class ServerNotification(
             title="ServerNotification",
         ),
     ]
+
+
+class ThreadSearchResponse(BaseModel):
+    model_config = ConfigDict(
+        populate_by_name=True,
+    )
+    backwards_cursor: Annotated[
+        str | None,
+        Field(
+            alias="backwardsCursor",
+            description="Opaque cursor to pass as `cursor` when reversing `sortDirection`. This is only populated when the page contains at least one thread. Use it with the opposite `sortDirection`; for timestamp sorts it anchors at the start of the page timestamp so same-second updates are not skipped.",
+        ),
+    ] = None
+    data: list[ThreadSearchResult]
+    next_cursor: Annotated[
+        str | None,
+        Field(
+            alias="nextCursor",
+            description="Opaque cursor to pass to the next call to continue after the last item. if None, there are no more items to return.",
+        ),
+    ] = None

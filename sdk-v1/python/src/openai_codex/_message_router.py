@@ -7,11 +7,12 @@ from collections import deque
 from ._goal import _GoalOperationState
 from .errors import CodexError, map_jsonrpc_error
 from .generated.notification_registry import notification_turn_id
-from .generated.v2_all import AccountLoginCompletedNotification
+from .generated.v2_all import AccountLoginCompletedNotification, FsChangedNotification
 from .models import JsonValue, Notification, UnknownNotification
 
 ResponseQueueItem = JsonValue | BaseException
 NotificationQueueItem = Notification | BaseException
+WatchQueueItem = Notification | BaseException | None
 
 
 class MessageRouter:
@@ -31,6 +32,7 @@ class MessageRouter:
         self._pending_login_notifications: dict[str, deque[Notification]] = {}
         self._turn_notifications: dict[str, queue.Queue[NotificationQueueItem]] = {}
         self._pending_turn_notifications: dict[str, deque[Notification]] = {}
+        self._watch_notifications: dict[str, queue.Queue[WatchQueueItem]] = {}
         self._goal_operations: dict[str, _GoalOperationState] = {}
         self._global_notifications: queue.Queue[NotificationQueueItem] = queue.Queue()
 
@@ -118,6 +120,34 @@ class MessageRouter:
             raise item
         return item
 
+    def register_watch(self, watch_id: str) -> None:
+        """Register a queue for one fs/watch subscription."""
+        watch_queue: queue.Queue[WatchQueueItem] = queue.Queue()
+        with self._lock:
+            if watch_id in self._watch_notifications:
+                return
+            self._watch_notifications[watch_id] = watch_queue
+
+    def unregister_watch(self, watch_id: str) -> None:
+        """Stop routing future fs/changed events and wake blocked consumers."""
+        with self._lock:
+            watch_queue = self._watch_notifications.pop(watch_id, None)
+        if watch_queue is not None:
+            watch_queue.put(None)
+
+    def next_watch_notification(self, watch_id: str) -> Notification | None:
+        """Block until the next fs/changed event, or None if the watch closed."""
+        with self._lock:
+            watch_queue = self._watch_notifications.get(watch_id)
+        if watch_queue is None:
+            return None
+        item = watch_queue.get()
+        if item is None:
+            return None
+        if isinstance(item, BaseException):
+            raise item
+        return item
+
     def register_goal(self, thread_id: str) -> _GoalOperationState:
         """Register one thread-scoped logical goal operation before it starts."""
         state = _GoalOperationState(thread_id=thread_id)
@@ -176,6 +206,14 @@ class MessageRouter:
     def route_notification(self, notification: Notification) -> None:
         """Deliver a notification to a turn queue or the global queue."""
 
+        watch_id = self._notification_watch_id(notification)
+        if watch_id is not None:
+            with self._lock:
+                watch_queue = self._watch_notifications.get(watch_id)
+            if watch_queue is not None:
+                watch_queue.put(notification)
+            return
+
         login_id = self._notification_login_id(notification)
         if login_id is not None:
             with self._lock:
@@ -225,6 +263,7 @@ class MessageRouter:
             self._pending_login_notifications.clear()
             turn_queues = list(self._turn_notifications.values())
             self._pending_turn_notifications.clear()
+            watch_queues = list(self._watch_notifications.values())
             goal_operations = list(self._goal_operations.values())
             self._goal_operations.clear()
         # Put the same transport failure into every queue so no SDK call blocks
@@ -235,6 +274,8 @@ class MessageRouter:
             login_queue.put(exc)
         for turn_queue in turn_queues:
             turn_queue.put(exc)
+        for watch_queue in watch_queues:
+            watch_queue.put(exc)
         for goal_operation in goal_operations:
             goal_operation.fail(exc)
         self._global_notifications.put(exc)
@@ -275,4 +316,16 @@ class MessageRouter:
             raw_login_id = payload.params.get("loginId")
             if isinstance(raw_login_id, str):
                 return raw_login_id
+        return None
+
+    def _notification_watch_id(self, notification: Notification) -> str | None:
+        """Extract the client-provided watch id from fs/changed notifications."""
+        payload = notification.payload
+        if isinstance(payload, FsChangedNotification):
+            return payload.watch_id
+        if notification.method != "fs/changed":
+            return None
+        if isinstance(payload, UnknownNotification):
+            raw_watch_id = payload.params.get("watchId")
+            return raw_watch_id if isinstance(raw_watch_id, str) else None
         return None

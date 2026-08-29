@@ -336,14 +336,27 @@ def _github_token() -> str | None:
 
 
 def _source_tree_runtime_dependency_version() -> str | None:
-    """Read the runtime dependency pin when the SDK is running from a checkout."""
+    """Read the runtime dependency version when the SDK is running from a checkout."""
     pyproject_path = Path(__file__).resolve().parent / "pyproject.toml"
     if not pyproject_path.exists():
         return None
 
-    match = re.search(_runtime_dependency_pin_pattern(), pyproject_path.read_text())
+    pyproject_text = pyproject_path.read_text()
+    match = re.search(_runtime_dependency_pin_pattern(), pyproject_text)
     if match is None:
-        return None
+        if f'"{PACKAGE_NAME}"' not in pyproject_text:
+            return None
+        runtime_template = (
+            Path(__file__).resolve().parent.parent / "python-runtime" / "pyproject.toml"
+        )
+        runtime_match = re.search(
+            r'^version = "([^"]+)"$', runtime_template.read_text(), re.MULTILINE
+        )
+        if runtime_match is None:
+            raise RuntimeSetupError(
+                "Unable to read sdk-v1/python-runtime/pyproject.toml runtime version."
+            )
+        return runtime_match.group(1)
     return match.group(1)
 
 

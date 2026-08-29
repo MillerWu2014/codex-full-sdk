@@ -70,5 +70,12 @@ Use Python's standard `help(openai_codex)`, `help(Codex)`, or
 - [FAQ](docs/faq.md)
 - [Examples](examples/README.md)
 
+## SDK Artifact Generation Notes
+
+- `scripts/update_sdk_artifacts.py generate-types` prefers a runtime binary, then
+  falls back to the checked-in precomputed experimental schema bundle.
+- The fallback path requires a system `zstd` CLI (Python 3.10-3.13 supported);
+  no extra Python dependency is required.
+
 The package is licensed under the
 [repository Apache License 2.0](https://github.com/openai/codex/blob/main/LICENSE).

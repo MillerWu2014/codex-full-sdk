@@ -1,6 +1,6 @@
 # Python SDK 最小范围实现需求
 
-本文约定 `openai-codex`（`sdk/python`）下一阶段要 **公开 1:1 封装** 的 app-server v2 方法。协议字段以 [`codex-rs/app-server/README.md`](../../codex-rs/app-server/README.md) 与 `generated/v2_all.py` 为准。分类对照 [`docs/app-server-api.zh.md`](../../docs/app-server-api.zh.md)。
+本文约定 `openai-codex`（`sdk-v1/python`）下一阶段要 **公开 1:1 封装** 的 app-server v2 方法。协议字段以 [`codex/codex-rs/app-server-protocol/src/protocol/common.rs`](../../codex/codex-rs/app-server-protocol/src/protocol/common.rs) 及其 v2 Params/Response、以及 `generated/v2_all.py` 为准。分类对照 [`app-server-api.zh.md`](../app-server-api.zh.md)。
 
 ## 1. 目标
 
@@ -234,9 +234,9 @@ P0 未完成不开始 P1。P1 全部隐藏在 experimental 开关后。
 
 1. 第 4 节「待做 / 补参数 / 升公开 / 实验性待做」均有对应公开方法（P1 须 `experimental_api`）。
 2. 第 2 节列出的 RPC **没有** 新的公开封装。
-3. `just test` 范围内：`sdk/python` 新增测试覆盖每个新 RPC 的至少一次成功路径。
+3. `just test` 范围内：`sdk-v1/python` 新增测试覆盖每个新 RPC 的至少一次成功路径。
 4. 同步与异步行为一致（同一 Params/Response 类型）。
-5. 更新 [`docs/app-server-api.zh.md`](../../docs/app-server-api.zh.md) 的 Python SDK 列：范围内方法从「无 / 内部 / 部分」改为「公开」。
+5. 更新 [`app-server-api.zh.md`](../app-server-api.zh.md) 的 Python SDK 列：范围内方法从「无 / 内部 / 部分」改为「公开」。
 6. 默认审批行为与现在相同（命令/补丁自动 accept）；文档写明自定义审批 **不在本范围**。
 
 ## 8. 刻意保留的限制
