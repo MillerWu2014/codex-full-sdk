@@ -1,0 +1,13 @@
+# Copy into the *user-level* file: ~/.codex/config.toml
+# Project-local .codex/config.toml cannot set model_provider / model_providers.
+#
+# Start adapter/server.py first. Codex must call the adapter, not the GPU host.
+
+model = "qwen3"
+model_provider = "local"
+
+[model_providers.local]
+name = "local"
+base_url = "http://127.0.0.1:18080/v1"
+wire_api = "responses"
+requires_openai_auth = false

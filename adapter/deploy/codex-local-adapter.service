@@ -1,0 +1,17 @@
+[Unit]
+Description=Codex local Responses adapter (fold)
+After=network.target
+
+[Service]
+Type=simple
+User=codex
+WorkingDirectory=/opt/codex-full-sdk
+Environment=CODEX_LOCAL_UPSTREAM=http://192.168.101.232:1234
+Environment=CODEX_LOCAL_LISTEN=127.0.0.1:18080
+Environment=CODEX_LOCAL_ADAPT=fold
+ExecStart=/usr/bin/python3 /opt/codex-full-sdk/adapter/server.py
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

@@ -28,6 +28,30 @@ with Codex() as codex:
 `thread.run(...)` returns a `TurnResult` containing the final response,
 collected items, and token usage.
 
+## Dependencies
+
+```text
+your app
+  →  openai-codex          (this package: Python API)
+  →  openai-codex-cli-bin  (pinned Codex binary; started by Codex())
+  →  ~/.codex/config.toml  (user-level provider + model; not a pip extra)
+  →  model endpoint        (OpenAI or a local /v1/responses server)
+```
+
+`pip install openai-codex` pulls `openai-codex-cli-bin` automatically. It does
+**not** install or start a local-model adapter.
+
+Codex talks **only** `POST /v1/responses`. Official OpenAI and any backend that
+already accepts that API need no extra process: set `model` / `model_provider`
+in **user-level** `~/.codex/config.toml` (project `.codex/config.toml` cannot
+override providers).
+
+If the local stack (Ollama, vLLM, LM Studio, SGLang, …) has `/v1/responses`
+but rejects Codex’s multiple `system`/`developer` items (typical Qwen), run
+the optional process in this repo’s [`adapter/`](../../adapter/README.md) and
+point `base_url` at `http://127.0.0.1:18080/v1`. The SDK does not launch it.
+`ADAPT=chat` (Responses → Chat Completions) is not implemented yet.
+
 ## Authentication
 
 Existing Codex authentication is reused automatically. To start ChatGPT

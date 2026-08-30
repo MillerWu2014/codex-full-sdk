@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.codex.local-adapter</string>
+  <key>WorkingDirectory</key>
+  <string>/Users/USER/workspace/codex-full-sdk</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>/Users/USER/workspace/codex-full-sdk/adapter/server.py</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>CODEX_LOCAL_UPSTREAM</key>
+    <string>http://192.168.101.232:1234</string>
+    <key>CODEX_LOCAL_LISTEN</key>
+    <string>127.0.0.1:18080</string>
+    <key>CODEX_LOCAL_ADAPT</key>
+    <string>fold</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/tmp/codex-local-adapter.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/codex-local-adapter.log</string>
+</dict>
+</plist>
