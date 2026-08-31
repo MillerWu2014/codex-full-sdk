@@ -14,3 +14,5 @@ htmlcov/
 .mypy_cache/
 .cursor/
 adapter/config.toml
+examples/local_adapter/.codex-home/
+examples/local_adapter/.scratch/

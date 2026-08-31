@@ -66,3 +66,5 @@ Codex 只打 `/v1/responses`。接 Ollama / vLLM / LM Studio / SGLang 时：
 2. 有 `/responses` 但 Qwen 等多 system 会炸 → 先起 [`adapter/`](adapter/README.md)，再把 `base_url` 指到 `http://127.0.0.1:18080/v1`。
 
 SDK 和 `codex/` 都不启动该进程。说明与 systemd / launchd 见 [`adapter/README.md`](adapter/README.md)。
+
+装好 wheel 后，用 conda 环境跑 [`examples/local_adapter/`](examples/local_adapter) 检查 SDK API 是否通（isolated `CODEX_HOME`，不会改你的 `~/.codex/config.toml`）。
