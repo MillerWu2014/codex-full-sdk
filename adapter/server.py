@@ -5,18 +5,15 @@ Codex only speaks POST /v1/responses. Point ~/.codex/config.toml at this
 process when the real backend needs a request rewrite (fold) before it can
 accept Codex traffic.
 
-    CODEX_LOCAL_UPSTREAM=http://127.0.0.1:1234 \\
-    CODEX_LOCAL_LISTEN=127.0.0.1:18080 \\
-    CODEX_LOCAL_ADAPT=fold \\
+Copy adapter/config.toml.example to adapter/config.toml, then:
+
     python3 adapter/server.py
 """
 
 from __future__ import annotations
 
-import argparse
 import json
 import logging
-import os
 import sys
 import time
 import uuid
@@ -42,9 +39,9 @@ HOP = {
 }
 
 CHAT_NOT_IMPLEMENTED = (
-    "ADAPT=chat is not implemented. Codex only speaks /v1/responses; "
+    "adapt=chat is not implemented. Codex only speaks /v1/responses; "
     "translating that into /v1/chat/completions is a later increment.\n"
-    "Use a backend that already exposes /v1/responses, or ADAPT=fold if it "
+    "Use a backend that already exposes /v1/responses, or adapt=fold if it "
     "does but rejects multiple system/developer messages (typical Qwen)."
 )
 
@@ -70,6 +67,43 @@ class RewriteInfo:
     out_bytes: int
 
 
+ALLOWED_KEYS = {"upstream", "listen", "adapt", "timeout"}
+DEFAULT_LISTEN = "127.0.0.1:18080"
+DEFAULT_ADAPT = "fold"
+DEFAULT_TIMEOUT = 600.0
+
+
+def default_config_path() -> Path:
+    return Path(__file__).resolve().parent / "config.toml"
+
+
+def parse_adapter_toml(text: str) -> dict[str, str]:
+    parsed: dict[str, str] = {}
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            raise SystemExit(f"Invalid config.toml line: {raw!r}")
+        key, _, rest = line.partition("=")
+        key = key.strip()
+        rest = rest.strip()
+        if key not in ALLOWED_KEYS:
+            raise SystemExit(f"Unknown config.toml key {key!r}. Allowed: {sorted(ALLOWED_KEYS)}")
+        if rest.startswith('"') or rest.startswith("'"):
+            quote = rest[0]
+            end = rest.find(quote, 1)
+            if end < 0:
+                raise SystemExit(f"Unclosed string in config.toml: {raw!r}")
+            parsed[key] = rest[1:end]
+            continue
+        token = rest.split("#", 1)[0].strip()
+        if not token:
+            raise SystemExit(f"Empty value for {key} in config.toml")
+        parsed[key] = token
+    return parsed
+
+
 def parse_listen(value: str) -> tuple[str, int]:
     text = value.strip()
     if not text or ":" not in text:
@@ -86,45 +120,32 @@ def parse_listen(value: str) -> tuple[str, int]:
     return host, port
 
 
-def load_settings(argv: list[str] | None = None) -> Settings:
-    parser = argparse.ArgumentParser(description="Codex local Responses adapter.")
-    parser.add_argument("--upstream", help="Upstream origin, no path. Env: CODEX_LOCAL_UPSTREAM.")
-    parser.add_argument(
-        "--listen",
-        help="host:port to bind. Env: CODEX_LOCAL_LISTEN. Default 127.0.0.1:18080.",
-    )
-    parser.add_argument(
-        "--adapt",
-        choices=("fold", "chat"),
-        help="Rewrite mode. Env: CODEX_LOCAL_ADAPT. Default fold.",
-    )
-    parser.add_argument(
-        "--timeout",
-        type=float,
-        help="Upstream timeout seconds. Env: CODEX_LOCAL_TIMEOUT. Default 600.",
-    )
-    args = parser.parse_args(argv)
-
-    upstream = (args.upstream or os.environ.get("CODEX_LOCAL_UPSTREAM") or "").rstrip("/")
-    if not upstream:
+def load_settings(path: Path | None = None) -> Settings:
+    config_path = path if path is not None else default_config_path()
+    if not config_path.is_file():
         raise SystemExit(
-            "Set CODEX_LOCAL_UPSTREAM or --upstream to the local model origin, "
-            "for example http://127.0.0.1:1234 (no /v1 suffix required if the "
-            "client already requests /v1/responses)."
+            f"Missing {config_path}. Copy adapter/config.toml.example to "
+            "adapter/config.toml and set upstream."
         )
-    listen = args.listen or os.environ.get("CODEX_LOCAL_LISTEN") or "127.0.0.1:18080"
+    parsed = parse_adapter_toml(config_path.read_text(encoding="utf-8"))
+    upstream = (parsed.get("upstream") or "").rstrip("/")
+    if not upstream:
+        raise SystemExit("config.toml must set upstream, for example http://127.0.0.1:1234")
+    listen = parsed.get("listen") or DEFAULT_LISTEN
     try:
         host, port = parse_listen(listen)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
-    adapt = (args.adapt or os.environ.get("CODEX_LOCAL_ADAPT") or "fold").strip().lower()
+    adapt = (parsed.get("adapt") or DEFAULT_ADAPT).strip().lower()
     if adapt == "chat":
         raise SystemExit(CHAT_NOT_IMPLEMENTED)
     if adapt != "fold":
-        raise SystemExit(f"Unknown ADAPT={adapt!r}. Supported: fold.")
-    timeout_s = args.timeout
-    if timeout_s is None:
-        timeout_s = float(os.environ.get("CODEX_LOCAL_TIMEOUT") or "600")
+        raise SystemExit(f"Unknown adapt={adapt!r}. Supported: fold.")
+    timeout_raw = parsed.get("timeout")
+    try:
+        timeout_s = DEFAULT_TIMEOUT if timeout_raw is None else float(timeout_raw)
+    except ValueError as exc:
+        raise SystemExit(f"timeout must be a number, got {timeout_raw!r}") from exc
     return Settings(upstream=upstream, host=host, port=port, adapt=adapt, timeout=timeout_s)
 
 
@@ -291,9 +312,9 @@ def configure_logging() -> None:
     LOG.propagate = False
 
 
-def main(argv: list[str] | None = None) -> int:
+def main() -> int:
     configure_logging()
-    settings = load_settings(argv)
+    settings = load_settings()
     httpd = ThreadingHTTPServer((settings.host, settings.port), make_handler(settings))
     LOG.info(
         "listen=%s:%s upstream=%s adapt=%s timeout=%s",

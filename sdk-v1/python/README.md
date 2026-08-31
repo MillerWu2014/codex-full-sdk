@@ -50,7 +50,7 @@ If the local stack (Ollama, vLLM, LM Studio, SGLang, …) has `/v1/responses`
 but rejects Codex’s multiple `system`/`developer` items (typical Qwen), run
 the optional process in this repo’s [`adapter/`](../../adapter/README.md) and
 point `base_url` at `http://127.0.0.1:18080/v1`. The SDK does not launch it.
-`ADAPT=chat` (Responses → Chat Completions) is not implemented yet.
+`adapt = "chat"` in `adapter/config.toml` (Responses → Chat Completions) is not implemented yet.
 
 ## Authentication
 

@@ -30,34 +30,43 @@ Codex（CLI 与 `openai-codex` SDK）**只**向模型服务发 `POST /v1/respons
 
 ## 何时用哪种 mode
 
-| `CODEX_LOCAL_ADAPT` | 何时 |
+写在 **`adapter/config.toml`** 的 `adapt`：
+
+| `adapt` | 何时 |
 | --- | --- |
 | `fold`（默认，已实现） | 上游已有 `/v1/responses`，但多条 system/developer 会失败（常见于 Qwen + LM Studio） |
 | `chat` | **未实现**。上游只有 `/v1/chat/completions` 时先换能讲 Responses 的后端，或等后续增量 |
 
 ## 启动
 
-只需 Python 3.10+ 标准库。
+只需 Python 3.10+ 标准库。配置只读 `adapter/config.toml`（相对 `server.py`，不看当前工作目录）。不读环境变量，也没有命令行参数。
 
 ```bash
-export CODEX_LOCAL_UPSTREAM=http://192.168.101.232:1234
-export CODEX_LOCAL_LISTEN=127.0.0.1:18080
-export CODEX_LOCAL_ADAPT=fold
+cp adapter/config.toml.example adapter/config.toml
+# 编辑 adapter/config.toml 里的 upstream
 
-# 在仓库根目录
 python3 adapter/server.py
 ```
 
-等价：
+`upstream` 是源站 origin（`http://host:port`），不要带 `/v1`。Codex 请求的路径（`/v1/responses`）会原样接到后面。
 
-```bash
-python3 adapter/server.py \
-  --upstream http://192.168.101.232:1234 \
-  --listen 127.0.0.1:18080 \
-  --adapt fold
+示例：
+
+```toml
+upstream = "http://192.168.101.232:1234"
+listen = "127.0.0.1:18080"
+adapt = "fold"
+timeout = 600
 ```
 
-`CODEX_LOCAL_UPSTREAM` 是源站 origin（`http://host:port`），不要带 `/v1`。Codex 请求的路径（`/v1/responses`）会原样接到后面。
+| 键 | 默认 | 含义 |
+| --- | --- | --- |
+| `upstream` | （必填） | 上游 origin |
+| `listen` | `127.0.0.1:18080` | 本机监听 |
+| `adapt` | `fold` | `fold` 或 `chat`（`chat` 会拒绝启动） |
+| `timeout` | `600` | 上游超时（秒） |
+
+`adapter/config.toml` 不进 git。仓库里的模板是 [`config.toml.example`](config.toml.example)。
 
 探活：`curl -s http://127.0.0.1:18080/health` 应返回 `ok`（探活不打访问日志）。
 
@@ -82,16 +91,7 @@ python3 adapter/server.py \
 
 systemd / launchd 示例已把 stderr 接到服务日志。
 
-### 环境变量
-
-| 变量 | 默认 | 含义 |
-| --- | --- | --- |
-| `CODEX_LOCAL_UPSTREAM` | （必填） | 上游 origin |
-| `CODEX_LOCAL_LISTEN` | `127.0.0.1:18080` | 本机监听 |
-| `CODEX_LOCAL_ADAPT` | `fold` | `fold` 或 `chat` |
-| `CODEX_LOCAL_TIMEOUT` | `600` | 上游超时（秒） |
-
-## 运维：config.toml
+## 运维：Codex 的 config.toml
 
 先起 adapter，再让 Codex 打 adapter，不要打上游。
 
@@ -124,33 +124,38 @@ with Codex() as codex:
 
 ## 部署
 
-进程要在 **Codex / SDK 之前** 起来，并与 app-server **同一台机器**（`base_url` 是 `127.0.0.1`）。
+进程要在 **Codex / SDK 之前** 起来，并与 app-server **同一台机器**（`base_url` 是 `127.0.0.1`）。机器上必须已有 `adapter/config.toml`。
 
 ### 手动
 
 ```bash
 cd /path/to/codex-full-sdk
-CODEX_LOCAL_UPSTREAM=http://192.168.101.232:1234 python3 adapter/server.py
+cp adapter/config.toml.example adapter/config.toml
+# 编辑 upstream
+python3 adapter/server.py
 ```
 
 ### systemd（Linux）
 
-1. 复制 [`deploy/codex-local-adapter.service`](deploy/codex-local-adapter.service)，改 `User`、`WorkingDirectory`、`CODEX_LOCAL_UPSTREAM`。
-2. `sudo cp ... /etc/systemd/system/`
-3. `sudo systemctl daemon-reload && sudo systemctl enable --now codex-local-adapter`
+1. 在仓库里写好 `adapter/config.toml`。
+2. 复制 [`deploy/codex-local-adapter.service`](deploy/codex-local-adapter.service)，改 `User`、`WorkingDirectory`。
+3. `sudo cp ... /etc/systemd/system/`
+4. `sudo systemctl daemon-reload && sudo systemctl enable --now codex-local-adapter`
 
 ### launchd（macOS）
 
-1. 复制 [`deploy/com.codex.local-adapter.plist`](deploy/com.codex.local-adapter.plist)，改路径和上游。
-2. `cp ... ~/Library/LaunchAgents/`
-3. `launchctl load ~/Library/LaunchAgents/com.codex.local-adapter.plist`
+1. 在仓库里写好 `adapter/config.toml`。
+2. 复制 [`deploy/com.codex.local-adapter.plist`](deploy/com.codex.local-adapter.plist)，改路径。
+3. `cp ... ~/Library/LaunchAgents/`
+4. `launchctl load ~/Library/LaunchAgents/com.codex.local-adapter.plist`
 
 ### 验收
 
 1. 上游 `/v1/responses` 可访问。
-2. `curl -s http://127.0.0.1:18080/health` → `ok`。
-3. 已写入用户级 `~/.codex/config.toml`。
-4. `python3 -c "from openai_codex import Codex; ..."` 或 `codex exec` 能跑通一轮。
+2. `adapter/config.toml` 已设置 `upstream`。
+3. `curl -s http://127.0.0.1:18080/health` → `ok`。
+4. 已写入用户级 `~/.codex/config.toml`。
+5. `python3 -c "from openai_codex import Codex; ..."` 或 `codex exec` 能跑通一轮。
 
 ## 本仓库位置
 

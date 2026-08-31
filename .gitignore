@@ -13,3 +13,4 @@ build/
 htmlcov/
 .mypy_cache/
 .cursor/
+adapter/config.toml

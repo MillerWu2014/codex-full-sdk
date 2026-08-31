@@ -11,15 +11,6 @@
     <string>/usr/bin/python3</string>
     <string>/Users/USER/workspace/codex-full-sdk/adapter/server.py</string>
   </array>
-  <key>EnvironmentVariables</key>
-  <dict>
-    <key>CODEX_LOCAL_UPSTREAM</key>
-    <string>http://192.168.101.232:1234</string>
-    <key>CODEX_LOCAL_LISTEN</key>
-    <string>127.0.0.1:18080</string>
-    <key>CODEX_LOCAL_ADAPT</key>
-    <string>fold</string>
-  </dict>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>

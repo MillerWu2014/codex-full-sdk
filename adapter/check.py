@@ -3,14 +3,25 @@
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
 from fold import fold
 from server import (
     CHAT_NOT_IMPLEMENTED,
     access_line,
+    default_config_path,
     load_settings,
     parse_listen,
     rewrite_payload,
 )
+
+
+def _write_toml(directory: Path, text: str) -> Path:
+    path = directory / "config.toml"
+    path.write_text(text, encoding="utf-8")
+    return path
 
 
 def test_parse_listen() -> None:
@@ -89,14 +100,96 @@ def test_access_line_has_ops_fields_not_prompt() -> None:
     assert "developer" not in line
 
 
-def test_chat_rejected() -> None:
+def test_default_config_path_is_beside_server() -> None:
+    assert default_config_path() == Path(__file__).resolve().parent / "config.toml"
+
+
+def test_load_settings_from_toml() -> None:
+    with TemporaryDirectory() as tmp:
+        path = _write_toml(
+            Path(tmp),
+            'upstream = "http://127.0.0.1:1234"\n'
+            'listen = "127.0.0.1:18081"\n'
+            'adapt = "fold"\n'
+            "timeout = 30\n",
+        )
+        settings = load_settings(path)
+    assert settings.upstream == "http://127.0.0.1:1234"
+    assert settings.host == "127.0.0.1"
+    assert settings.port == 18081
+    assert settings.adapt == "fold"
+    assert settings.timeout == 30.0
+
+
+def test_load_settings_defaults() -> None:
+    with TemporaryDirectory() as tmp:
+        path = _write_toml(Path(tmp), 'upstream = "http://192.0.2.1:9"\n')
+        settings = load_settings(path)
+    assert settings.host == "127.0.0.1"
+    assert settings.port == 18080
+    assert settings.adapt == "fold"
+    assert settings.timeout == 600.0
+
+
+def test_missing_config_exits() -> None:
+    missing = Path("/tmp/codex-adapter-missing-config.toml")
+    if missing.exists():
+        missing.unlink()
     try:
-        load_settings(["--upstream", "http://127.0.0.1:1234", "--adapt", "chat"])
+        load_settings(missing)
     except SystemExit as exc:
-        assert "not implemented" in str(exc)
-        assert "fold" in CHAT_NOT_IMPLEMENTED
+        assert "config.toml" in str(exc)
     else:
-        raise AssertionError("chat must exit")
+        raise AssertionError("missing config must exit")
+
+
+def test_missing_upstream_exits() -> None:
+    with TemporaryDirectory() as tmp:
+        path = _write_toml(Path(tmp), 'listen = "127.0.0.1:18080"\n')
+        try:
+            load_settings(path)
+        except SystemExit as exc:
+            assert "upstream" in str(exc)
+        else:
+            raise AssertionError("missing upstream must exit")
+
+
+def test_env_and_argv_are_ignored() -> None:
+    os.environ["CODEX_LOCAL_UPSTREAM"] = "http://env.example:1"
+    os.environ["CODEX_LOCAL_LISTEN"] = "0.0.0.0:9"
+    os.environ["CODEX_LOCAL_ADAPT"] = "chat"
+    os.environ["CODEX_LOCAL_TIMEOUT"] = "1"
+    try:
+        with TemporaryDirectory() as tmp:
+            path = _write_toml(Path(tmp), 'upstream = "http://127.0.0.1:1234"\n')
+            settings = load_settings(path)
+        assert settings.upstream == "http://127.0.0.1:1234"
+        assert settings.port == 18080
+        assert settings.adapt == "fold"
+        assert settings.timeout == 600.0
+    finally:
+        for key in (
+            "CODEX_LOCAL_UPSTREAM",
+            "CODEX_LOCAL_LISTEN",
+            "CODEX_LOCAL_ADAPT",
+            "CODEX_LOCAL_TIMEOUT",
+        ):
+            os.environ.pop(key, None)
+
+
+def test_chat_rejected() -> None:
+    with TemporaryDirectory() as tmp:
+        path = _write_toml(
+            Path(tmp),
+            'upstream = "http://127.0.0.1:1234"\nadapt = "chat"\n',
+        )
+        try:
+            load_settings(path)
+        except SystemExit as exc:
+            assert "not implemented" in str(exc)
+            assert "fold" in CHAT_NOT_IMPLEMENTED
+        else:
+            raise AssertionError("chat must exit")
 
 
 if __name__ == "__main__":
@@ -105,5 +198,11 @@ if __name__ == "__main__":
     test_fold_skips_single_system()
     test_rewrite_only_responses_post()
     test_access_line_has_ops_fields_not_prompt()
+    test_default_config_path_is_beside_server()
+    test_load_settings_from_toml()
+    test_load_settings_defaults()
+    test_missing_config_exits()
+    test_missing_upstream_exits()
+    test_env_and_argv_are_ignored()
     test_chat_rejected()
     print("ok")
