@@ -89,9 +89,14 @@ Use Python's standard `help(openai_codex)`, `help(Codex)`, or
 
 ## Documentation
 
+Hub (bilingual API TOC + related docs): [repository README](../../README.md)
+
+- [Public API v0.152.0 (English)](docs/codex-python-sdk-v0.152.0-api-en.md)
+- [公开接口 v0.152.0（中文）](docs/codex-python-sdk-v0.152.0-api-zh.md)
 - [Getting started](docs/getting-started.md)
-- [API reference](docs/api-reference.md)
 - [FAQ](docs/faq.md)
+- [`~/.codex` layout](docs/codex-home.md)
+- [App-server RPC coverage](../app-server-api.zh.md)
 - [Examples](examples/README.md)
 
 ## SDK Artifact Generation Notes

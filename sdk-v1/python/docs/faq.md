@@ -98,6 +98,10 @@ Common causes:
 - local `codex_bin` override points to a missing file
 - a custom local Codex executable does not support the SDK operation being used
 
+## Where does Codex store local state?
+
+CLI, `app-server`, and the Python SDK share `$CODEX_HOME` (default `~/.codex`). Threads live as JSONL rollouts under `sessions/`; SQLite files (`state_5.sqlite`, `thread_history_1.sqlite`, …) are indexes, logs, goals, memories, and queues. See [codex-home.md](codex-home.md).
+
 ## Why does a turn "hang"?
 
 A turn is complete only when `turn/completed` arrives for that turn ID.
@@ -118,3 +122,10 @@ Do not blindly retry all errors. For `InvalidParamsError` or
 - Forgetting to `close()` (or not using context managers).
 - Reading `Turn.items` from live start/completed payloads instead of using `TurnResult.items`.
 - Mixing SDK input classes with raw dicts incorrectly.
+
+## Related docs
+
+- [Public API (EN)](codex-python-sdk-v0.152.0-api-en.md) · [中文](codex-python-sdk-v0.152.0-api-zh.md)
+- [Getting started](getting-started.md) · [`~/.codex`](codex-home.md)
+- [App-server coverage](../../app-server-api.zh.md)
+- [Repository docs hub](../../../README.md)

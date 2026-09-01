@@ -1,5 +1,11 @@
 # Codex App-Server API 分类说明
 
+公开 Python 封装（参数/返回/示例）不在本文，而在：
+
+- [sdk-v1 接口 · 中文](python/docs/codex-python-sdk-v0.152.0-api-zh.md)
+- [sdk-v1 API · English](python/docs/codex-python-sdk-v0.152.0-api-en.md)
+- 仓库文档入口：[根 README](../README.md)
+
 本文按功能分类整理 `codex app-server` 的 **v2 JSON-RPC** 接口（方法名、作用、依赖、Python SDK 覆盖）。协议字段、错误码与 JSON 示例以英文原文为准：
 
 - [`codex-rs/app-server/README.md`](../codex/codex-rs/app-server/README.md)
