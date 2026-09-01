@@ -630,7 +630,7 @@ def test_source_sdk_template_uses_path_runtime_dependency() -> None:
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
     dependencies = pyproject["project"]["dependencies"]
 
-    assert pyproject["project"]["version"] == "1.0.0"
+    assert pyproject["project"]["version"] == "0.152.0"
     assert _runtime_dependency_spec(dependencies) == "openai-codex-cli-bin"
     assert pyproject["tool"]["uv"]["sources"]["openai-codex-cli-bin"] == {
         "path": "../python-runtime"
@@ -708,7 +708,7 @@ def test_runtime_setup_reads_independent_runtime_pin_and_release_tags() -> None:
         "alpha_hotfix_release_tag": runtime_setup._release_tag("0.116.0a1.post2"),
     } == {
         "package_name": "openai-codex-cli-bin",
-        "sdk_template_version": "1.0.0",
+        "sdk_template_version": "0.152.0",
         "runtime_pin": runtime_template["project"]["version"],
         "normalized_release_version": "0.116.0a1",
         "normalized_alpha_hotfix_version": "0.116.0a1.post2",
@@ -931,6 +931,29 @@ def test_stage_runtime_release_rejects_incomplete_package_layout(tmp_path: Path)
 
     with pytest.raises(RuntimeError, match="Missing Codex package layout entries"):
         script.stage_python_runtime_package(tmp_path / "runtime-stage", "1.2.3", package_archive)
+
+
+def test_stage_runtime_accepts_windows_binaries_on_any_host(tmp_path: Path) -> None:
+    script = _load_update_script_module()
+    package_dir = tmp_path / "codex-package"
+    (package_dir / "bin").mkdir(parents=True)
+    (package_dir / "codex-resources").mkdir()
+    (package_dir / "codex-path").mkdir()
+    (package_dir / "codex-package.json").write_text('{"variant":"codex"}\n')
+    (package_dir / "bin" / "codex.exe").write_text("fake\n")
+    (package_dir / "bin" / "codex-code-mode-host.exe").write_text("fake\n")
+    archive_path = tmp_path / "codex-package.tar.gz"
+    _write_package_archive(package_dir, archive_path)
+
+    staged = script.stage_python_runtime_package(
+        tmp_path / "runtime-stage",
+        "0.152.0",
+        archive_path,
+        platform_tag="win_amd64",
+    )
+    package_root = script.staged_runtime_package_root(staged)
+    assert (package_root / "bin" / "codex.exe").is_file()
+    assert 'platform-tag = "win_amd64"' in (staged / "pyproject.toml").read_text()
 
 
 def test_runtime_package_layout_is_included_by_wheel_config(

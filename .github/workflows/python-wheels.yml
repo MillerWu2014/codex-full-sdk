@@ -1,0 +1,78 @@
+# Pack all six openai-codex-cli-bin wheels the same way official
+# python-runtime-build.yml does: one Linux runner, no cargo matrix.
+# Binaries come from openai/codex GitHub rust-v* `codex-package-*.tar.gz`.
+#
+# This does not compile Rust on macos-latest / windows-latest. That matrix
+# lives in the upstream rust release CI. We only restage public packages.
+#
+# Wheels are uploaded as Actions artifacts. Tag pushes also attach them to a
+# GitHub Release. They are not published to pypi.org — those names belong to
+# OpenAI (`openai-codex`, `openai-codex-cli-bin`).
+
+name: python-wheels
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: python-wheels-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install zstd
+        run: sudo apt-get update && sudo apt-get install -y zstd
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Pack six cli-bin wheels and the SDK wheel
+        run: |
+          python3 scripts/build_all.py \
+            --from-github-release \
+            --all-platforms \
+            --sdk-from-precomputed
+
+      - name: Check wheel set
+        run: python3 scripts/cli_bin_platforms.py --check-wheels dist/wheels
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-wheels
+          path: dist/wheels/*
+          if-no-files-found: error
+
+  github-release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs: pack
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download wheels
+        uses: actions/download-artifact@v4
+        with:
+          name: python-wheels
+          path: dist/wheels
+
+      - name: Attach wheels to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/wheels/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true

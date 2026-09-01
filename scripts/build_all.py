@@ -7,11 +7,13 @@ it does not modify the submodule.
     python3 scripts/build_all.py
 
 Outputs land in `dist/` (gitignored):
-  dist/codex-package/                          unpacked CLI package
-  dist/codex-package-<target>.tar.gz           archive for stage-runtime
-  dist/runtime-stage/                          staged openai-codex-cli-bin tree
-  dist/sdk-stage/                              staged openai-codex tree
-  dist/wheels/*.whl                            installable wheels
+    dist/codex-package-<target>.tar.gz           archive for stage-runtime
+    dist/runtime-stage-<target>/                 staged openai-codex-cli-bin tree
+    dist/sdk-stage/                              staged openai-codex tree
+    dist/wheels/*.whl                            six cli-bin wheels + one any SDK wheel
+
+Default is this host's one of the six official package triples. Pack all six
+from GitHub rust-v* archives with --from-github-release --all-platforms.
 """
 
 from __future__ import annotations
@@ -26,9 +28,25 @@ import sys
 import tempfile
 from pathlib import Path
 
+from cli_bin_platforms import (
+    github_package_url,
+    pep425_tag,
+    rust_targets,
+    runtime_binary_name,
+)
+
 
 def repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
+
+
+def _load_release_version():
+    sdk_python = repo_root() / "sdk-v1" / "python"
+    if str(sdk_python) not in sys.path:
+        sys.path.insert(0, str(sdk_python))
+    from release_version import codex_release_tag
+
+    return codex_release_tag
 
 
 def read_sdk_version(root: Path) -> str:
@@ -61,10 +79,6 @@ def host_rust_target() -> str:
             "Pass --target explicitly."
         )
     return target
-
-
-def runtime_binary_name() -> str:
-    return "codex.exe" if os.name == "nt" else "codex"
 
 
 def _executable(path: Path) -> str | None:
@@ -154,6 +168,27 @@ def check_rust(cargo: str, env: dict[str, str], root: Path) -> None:
     print(f"         {rustc_v}  ({rustc})", flush=True)
 
 
+def _probe_datamodel_codegen(
+    uv: str, sdk_python: Path, env: dict[str, str]
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            uv,
+            "run",
+            "--project",
+            str(sdk_python),
+            "--no-sync",
+            "python",
+            "-c",
+            "import datamodel_code_generator; import sys; print(sys.executable)",
+        ],
+        cwd=sdk_python,
+        env=env,
+        text=True,
+        capture_output=True,
+    )
+
+
 def check_sdk_python(uv: str, sdk_python: Path, env: dict[str, str]) -> None:
     if not (sdk_python / "pyproject.toml").is_file():
         raise RuntimeError(f"缺少 sdk-v1/python/pyproject.toml: {sdk_python}")
@@ -163,23 +198,19 @@ def check_sdk_python(uv: str, sdk_python: Path, env: dict[str, str]) -> None:
         ).strip()
     except (OSError, subprocess.CalledProcessError) as exc:
         raise RuntimeError(f"{sdk_python_hint()}\n\n探测失败: {exc}") from exc
-    probe = [
-        uv,
-        "run",
-        "--project",
-        str(sdk_python),
-        "--no-sync",
-        "python",
-        "-c",
-        "import datamodel_code_generator; import sys; print(sys.executable)",
-    ]
-    proc = subprocess.run(
-        probe, cwd=sdk_python, env=env, text=True, capture_output=True
-    )
+
+    proc = _probe_datamodel_codegen(uv, sdk_python, env)
     if proc.returncode != 0:
-        detail = (proc.stderr or proc.stdout or "").strip()
-        extra = f"\n\n探测失败:\n{detail}" if detail else ""
-        raise RuntimeError(f"{sdk_python_hint()}{extra}")
+        print("SDK Python 缺少开发依赖，执行 uv sync --project sdk-v1/python", flush=True)
+        try:
+            run([uv, "sync", "--project", str(sdk_python)], cwd=sdk_python, env=env)
+        except subprocess.CalledProcessError as exc:
+            raise RuntimeError(f"{sdk_python_hint()}\n\nuv sync 失败: {exc}") from exc
+        proc = _probe_datamodel_codegen(uv, sdk_python, env)
+        if proc.returncode != 0:
+            detail = (proc.stderr or proc.stdout or "").strip()
+            extra = f"\n\n探测失败:\n{detail}" if detail else ""
+            raise RuntimeError(f"{sdk_python_hint()}{extra}")
     print(f"SDK Python OK: {uv_v}  ({uv})", flush=True)
     print(f"               {proc.stdout.strip()}", flush=True)
 
@@ -222,6 +253,125 @@ def build_wheel(uv: str, stage_dir: Path, wheels_dir: Path, env: dict[str, str])
         return copied
 
 
+def download_github_archive(url: str, dest: Path) -> None:
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    partial = dest.with_name(dest.name + ".partial")
+    if partial.exists():
+        partial.unlink()
+    curl = shutil.which("curl")
+    if curl is None:
+        raise RuntimeError("Need curl on PATH to download GitHub release archives.")
+    help_text = subprocess.check_output([curl, "--help"], text=True, stderr=subprocess.STDOUT)
+    cmd = [curl, "-fL", "--retry", "5", "--retry-delay", "2"]
+    if "--retry-all-errors" in help_text:
+        cmd.append("--retry-all-errors")
+    cmd.extend(["-o", str(partial), url])
+    run(cmd, cwd=dest.parent, env=os.environ.copy())
+    partial.replace(dest)
+
+
+def ensure_package_archive(
+    *,
+    target: str,
+    archive_path: Path,
+    args: argparse.Namespace,
+    root: Path,
+    version: str,
+    env: dict[str, str],
+    cargo: str | None,
+) -> None:
+    if args.from_github_release and not args.skip_cli:
+        release_tag = _load_release_version()(version)
+        url = github_package_url(release_tag, target)
+        print(f"Downloading {url}")
+        download_github_archive(url, archive_path)
+        return
+    if args.skip_cli:
+        if not archive_path.is_file():
+            raise RuntimeError(f"--skip-cli requires existing archive: {archive_path}")
+        print(f"Reusing CLI archive {archive_path}")
+        return
+    if cargo is None:
+        raise RuntimeError("cargo is required unless --skip-cli or --from-github-release")
+    package_dir = archive_path.parent / f"codex-package-{target}"
+    run(
+        [
+            sys.executable,
+            str(root / "codex" / "scripts" / "build_codex_package.py"),
+            "--target",
+            target,
+            "--package-version",
+            version,
+            "--package-dir",
+            str(package_dir),
+            "--archive-output",
+            str(archive_path),
+            "--cargo-profile",
+            args.cargo_profile,
+            "--cargo",
+            cargo,
+            "--force",
+        ],
+        cwd=root / "codex",
+        env=env,
+    )
+
+
+def stage_runtime_wheel(
+    *,
+    uv: str,
+    update_script: Path,
+    sdk_python: Path,
+    runtime_stage: Path,
+    archive_path: Path,
+    version: str,
+    target: str,
+    wheels_dir: Path,
+    env: dict[str, str],
+) -> list[Path]:
+    rm_and_mkdir(runtime_stage)
+    run(
+        sdk_python_cmd(
+            uv,
+            update_script,
+            "stage-runtime",
+            str(runtime_stage),
+            str(archive_path),
+            "--codex-version",
+            version,
+            "--platform-tag",
+            pep425_tag(target),
+        ),
+        cwd=sdk_python,
+        env=env,
+    )
+    return build_wheel(uv, runtime_stage, wheels_dir, env)
+
+
+def unpack_codex_bin(archive_path: Path, dest_dir: Path, target: str) -> Path:
+    if dest_dir.exists():
+        shutil.rmtree(dest_dir)
+    dest_dir.mkdir(parents=True)
+    shutil.unpack_archive(archive_path, dest_dir)
+    binary = dest_dir / "bin" / runtime_binary_name(target)
+    if not binary.is_file():
+        raise RuntimeError(f"Codex binary missing in {archive_path}: {binary}")
+    return binary
+
+
+def codex_runs(binary: Path) -> bool:
+    try:
+        subprocess.run(
+            [str(binary), "--version"],
+            check=True,
+            capture_output=True,
+            timeout=60,
+        )
+        return True
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return False
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Build Codex CLI package, python-runtime wheel, and Python SDK wheel."
@@ -237,7 +387,33 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--target",
-        help="Rust target triple. Defaults to this host's release target.",
+        help="One of the six official rust triples. Defaults to this host.",
+    )
+    parser.add_argument(
+        "--all-platforms",
+        action="store_true",
+        help="Pack openai-codex-cli-bin for all six official package triples.",
+    )
+    parser.add_argument(
+        "--from-github-release",
+        action="store_true",
+        help=(
+            "Download official codex-package-*.tar.gz from GitHub rust-v* instead of cargo. "
+            "Tag is rust-v<version> from --version / pyproject."
+        ),
+    )
+    parser.add_argument(
+        "--skip-sdk",
+        action="store_true",
+        help="Only build openai-codex-cli-bin wheels (no openai-codex wheel).",
+    )
+    parser.add_argument(
+        "--sdk-from-precomputed",
+        action="store_true",
+        help=(
+            "Build the openai-codex wheel from the submodule precomputed schema "
+            "(GitHub CI: musl binaries often will not run on ubuntu-latest)."
+        ),
     )
     parser.add_argument(
         "--cargo-profile",
@@ -247,7 +423,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--skip-cli",
         action="store_true",
-        help="Reuse an existing dist/codex-package archive instead of rebuilding the CLI.",
+        help="Reuse existing dist/codex-package-<target>.tar.gz archives.",
     )
     parser.add_argument(
         "--cargo",
@@ -260,35 +436,51 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def selected_targets(args: argparse.Namespace) -> tuple[str, ...]:
+    if args.all_platforms and args.target:
+        raise RuntimeError("Use either --target or --all-platforms, not both.")
+    if args.all_platforms:
+        return rust_targets()
+    target = args.target or host_rust_target()
+    pep425_tag(target)  # reject unknown triples
+    return (target,)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     root = repo_root()
     codex_root = root / "codex"
-    if not (codex_root / "scripts" / "build_codex_package.py").is_file():
-        raise RuntimeError(
-            f"Codex submodule is missing at {codex_root}. "
-            "Run: git submodule update --init --recursive"
-        )
-
     version = args.version or read_sdk_version(root)
     out_dir = (args.out_dir or (root / "dist")).resolve()
-    target = args.target or host_rust_target()
-    package_dir = out_dir / "codex-package"
-    archive_path = out_dir / f"codex-package-{target}.tar.gz"
-    runtime_stage = out_dir / "runtime-stage"
-    sdk_stage = out_dir / "sdk-stage"
+    targets = selected_targets(args)
+    need_cargo = not args.skip_cli and not args.from_github_release
+    if len(targets) > 1 and need_cargo:
+        raise RuntimeError(
+            "--all-platforms needs official archives, not a host cargo build. "
+            "Use: python3 scripts/build_all.py --from-github-release --all-platforms"
+        )
+
     wheels_dir = out_dir / "wheels"
     update_script = root / "sdk-v1" / "python" / "scripts" / "update_sdk_artifacts.py"
     env = os.environ.copy()
     env["CODEX_REPO_ROOT"] = str(codex_root)
     sdk_python = root / "sdk-v1" / "python"
-    python = sys.executable
+
+    if need_cargo or not args.skip_sdk:
+        if not (codex_root / "scripts" / "build_codex_package.py").is_file():
+            raise RuntimeError(
+                f"Codex submodule is missing at {codex_root}. "
+                "Run: git submodule update --init --recursive"
+            )
 
     uv = resolve_tool("uv", args.uv, env, sdk_python_hint())
-    check_sdk_python(uv, sdk_python, env)
+    if args.skip_sdk:
+        print(f"uv OK: {uv}  (--skip-sdk, not probing datamodel-code-generator)", flush=True)
+    else:
+        check_sdk_python(uv, sdk_python, env)
 
     cargo: str | None = None
-    if not args.skip_cli:
+    if need_cargo:
         if not args.cargo:
             prepend_local_rust(root, env)
         cargo = resolve_tool("cargo", args.cargo, env, rust_hint(root))
@@ -296,75 +488,73 @@ def main(argv: list[str] | None = None) -> int:
 
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    if args.skip_cli:
-        if not archive_path.is_file():
-            raise RuntimeError(f"--skip-cli requires existing archive: {archive_path}")
-        print(f"Reusing CLI archive {archive_path}")
-    else:
-        assert cargo is not None
-        run(
-            [
-                python,
-                str(codex_root / "scripts" / "build_codex_package.py"),
-                "--target",
-                target,
-                "--package-version",
-                version,
-                "--package-dir",
-                str(package_dir),
-                "--archive-output",
-                str(archive_path),
-                "--cargo-profile",
-                args.cargo_profile,
-                "--cargo",
-                cargo,
-                "--force",
-            ],
-            cwd=codex_root,
+    runtime_wheels: list[Path] = []
+    archives: dict[str, Path] = {}
+    for target in targets:
+        archive_path = out_dir / f"codex-package-{target}.tar.gz"
+        ensure_package_archive(
+            target=target,
+            archive_path=archive_path,
+            args=args,
+            root=root,
+            version=version,
             env=env,
+            cargo=cargo,
+        )
+        archives[target] = archive_path
+        runtime_wheels.extend(
+            stage_runtime_wheel(
+                uv=uv,
+                update_script=update_script,
+                sdk_python=sdk_python,
+                runtime_stage=out_dir / f"runtime-stage-{target}",
+                archive_path=archive_path,
+                version=version,
+                target=target,
+                wheels_dir=wheels_dir,
+                env=env,
+            )
         )
 
-    rm_and_mkdir(runtime_stage)
-    run(
-        sdk_python_cmd(
-            uv,
-            update_script,
-            "stage-runtime",
-            str(runtime_stage),
-            str(archive_path),
-            "--codex-version",
-            version,
-        ),
-        cwd=sdk_python,
-        env=env,
-    )
-    runtime_wheels = build_wheel(uv, runtime_stage, wheels_dir, env)
+    if args.skip_sdk and args.sdk_from_precomputed:
+        raise RuntimeError("Use either --skip-sdk or --sdk-from-precomputed, not both.")
 
-    codex_bin = package_dir / "bin" / runtime_binary_name()
-    if not codex_bin.is_file():
-        # --skip-cli may not have unpacked package_dir; extract the archive once.
-        package_dir.mkdir(parents=True, exist_ok=True)
-        shutil.unpack_archive(archive_path, package_dir)
-        codex_bin = package_dir / "bin" / runtime_binary_name()
-    if not codex_bin.is_file():
-        raise RuntimeError(f"Codex binary missing after CLI package build: {codex_bin}")
-
-    rm_and_mkdir(sdk_stage)
-    run(
-        sdk_python_cmd(
+    sdk_wheels: list[Path] = []
+    if not args.skip_sdk:
+        sdk_stage = out_dir / "sdk-stage"
+        rm_and_mkdir(sdk_stage)
+        sdk_cmd = sdk_python_cmd(
             uv,
             update_script,
             "stage-sdk",
             str(sdk_stage),
             "--sdk-version",
             version,
-            "--codex-bin",
-            str(codex_bin),
-        ),
-        cwd=sdk_python,
-        env=env,
-    )
-    sdk_wheels = build_wheel(uv, sdk_stage, wheels_dir, env)
+        )
+        if args.sdk_from_precomputed:
+            print("Staging openai-codex from precomputed schema (no host binary).", flush=True)
+        else:
+            host = host_rust_target()
+            sdk_archive = archives.get(host)
+            if sdk_archive is None:
+                print(
+                    f"Skipping openai-codex wheel: no {host} archive in this build "
+                    "(use a host-native --target, or --sdk-from-precomputed).",
+                    flush=True,
+                )
+                sdk_cmd = None
+            else:
+                package_dir = out_dir / f"codex-package-{host}"
+                binary = unpack_codex_bin(sdk_archive, package_dir, host)
+                if not codex_runs(binary):
+                    raise RuntimeError(
+                        f"Host Codex binary does not run: {binary}. "
+                        "Pass --sdk-from-precomputed (CI) or --skip-sdk."
+                    )
+                sdk_cmd.extend(["--codex-bin", str(binary)])
+        if sdk_cmd is not None:
+            run(sdk_cmd, cwd=sdk_python, env=env)
+            sdk_wheels = build_wheel(uv, sdk_stage, wheels_dir, env)
 
     print("\nBuilt wheels:")
     for wheel in [*runtime_wheels, *sdk_wheels]:

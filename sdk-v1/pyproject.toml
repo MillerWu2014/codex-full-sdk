@@ -1,6 +1,6 @@
 [project]
 name = "codex-sdk-v1"
-version = "1.0.0"
+version = "0.152.0"
 description = "Python-only Codex SDK v1 workspace (no TypeScript)"
 readme = "README.md"
 requires-python = ">=3.10"

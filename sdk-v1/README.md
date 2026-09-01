@@ -36,4 +36,4 @@ with Codex(CodexConfig(codex_bin="codex-rs/target/release/codex")) as codex:
 
 ## 版本
 
-工作区包版本为 **1.0.0**。
+工作区包版本为 **0.152.0**（与上游 `rust-v0.152.0` 对齐）。

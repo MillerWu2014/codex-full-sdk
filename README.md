@@ -47,16 +47,54 @@ with Codex(CodexConfig(codex_bin="codex/codex-rs/target/release/codex")) as code
 python3 scripts/build_all.py
 ```
 
-会依次：从当前子模块编译官方 `codex-package`、把 CLI 打进 `openai-codex-cli-bin` wheel、再打与之同版本的 `openai-codex` SDK wheel。产物都在已忽略的 `dist/` 下（`dist/wheels/*.whl`），不会写进 git 跟踪的 `sdk-v1/python-runtime`。
+默认只打**本机**那一个官方 triple（Linux 用 musl，与 GitHub `codex-package` 一致）：从子模块编译、打带正确 PEP 425 标签的 `openai-codex-cli-bin`、再打同版本 `openai-codex`（`py3-none-any`）。产物在已忽略的 `dist/wheels/`。
+
+六个官方 package 平台：
+
+| rust target | wheel tag |
+| --- | --- |
+| `aarch64-apple-darwin` | `macosx_11_0_arm64` |
+| `x86_64-apple-darwin` | `macosx_10_9_x86_64` |
+| `aarch64-unknown-linux-musl` | `musllinux_1_1_aarch64` |
+| `x86_64-unknown-linux-musl` | `musllinux_1_1_x86_64` |
+| `aarch64-pc-windows-msvc` | `win_arm64` |
+| `x86_64-pc-windows-msvc` | `win_amd64` |
+
+一次打齐六个 cli-bin wheel（下载 `rust-v*` 上的 `codex-package-*.tar.gz`，不必在本机交叉编译）：
 
 ```bash
-python3 scripts/build_all.py --version 1.0.0
+python3 scripts/build_all.py --from-github-release --all-platforms
+```
+
+本机有对应二进制时会再打 SDK wheel；只打 runtime 用 `--skip-sdk`。
+
+```bash
+python3 scripts/build_all.py --version 0.152.0
 python3 scripts/build_all.py --skip-cli          # 复用已有 dist/codex-package-<target>.tar.gz
 python3 scripts/build_all.py --cargo-profile dev-small
 python3 scripts/build_all.py --cargo "$HOME/.cargo/bin/cargo" --uv "$HOME/.local/bin/uv"
 ```
 
-开编前会检查 Rust（`cargo`/`rustc`）和 `sdk-v1/python`（`uv` + `datamodel-code-generator`）。缺了会打印安装或 `--cargo` / `--uv` 指定方式。`--skip-cli` 只跳过 Rust 检查。需要已 init 的 `codex/` 子模块。
+cargo 路径会检查 Rust；`--from-github-release` / `--skip-cli` 不检查。`uv` 与 `datamodel-code-generator` 始终需要（打 SDK 时生成类型）。需要已 init 的 `codex/` 子模块。
+
+官方 PyPI 的 `openai-codex-cli-bin` 另外还有两个 `manylinux` wheel（gnu），GitHub 上没有对应的 `*-linux-gnu` package 包；本仓库只 wrap 公开的六个 `codex-package`。
+
+### GitHub Actions
+
+官方 Codex 其实是两层 CI，不要混：
+
+1. **Rust 多 runner 矩阵**（macos / linux / windows）在上游编译 `codex-package` 和预编译 wheel。本仓库不复制那套，也不在 CI 里 `cargo build`。
+2. **python-runtime-build** 是一台 `ubuntu-latest`：把已经发布的包重新打成 Python wheel。本仓库走这条。
+
+Workflow：[`.github/workflows/python-wheels.yml`](.github/workflows/python-wheels.yml)。Actions 里手动 `Run workflow`，或推 `v*` tag：
+
+```text
+python3 scripts/build_all.py --from-github-release --all-platforms --sdk-from-precomputed
+```
+
+`--sdk-from-precomputed` 用子模块里的预计算 schema 打 `py3-none-any` 的 SDK wheel。Ubuntu 上往往跑不了 musl 的 `codex`，所以 CI 不依赖本机执行官方二进制。
+
+产物进 Actions artifact；推 `v0.152.0` 这类 tag 时再挂到 GitHub Release。默认不上 pypi.org：`openai-codex` / `openai-codex-cli-bin` 是 OpenAI 的包名。
 
 ## 本地模型
 

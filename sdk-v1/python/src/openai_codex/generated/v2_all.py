@@ -12184,8 +12184,22 @@ class GetAccountRateLimitsResponse(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
     )
+    account_id: Annotated[
+        str | None,
+        Field(
+            alias="accountId",
+            description="Account associated with this usage snapshot, when supplied by the backend.",
+        ),
+    ] = None
     rate_limit_reset_credits: Annotated[
         RateLimitResetCreditsSummary | None, Field(alias="rateLimitResetCredits")
+    ] = None
+    rate_limit_upsell: Annotated[
+        Any | None,
+        Field(
+            alias="rateLimitUpsell",
+            description="Optional backend-owned banner from the same usage read. Its nested keys retain the backend's snake_case contract; an absent banner leaves the client's existing UI unchanged.",
+        ),
     ] = None
     rate_limits: Annotated[
         RateLimitSnapshot,
