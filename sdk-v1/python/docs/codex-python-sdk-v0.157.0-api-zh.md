@@ -1,13 +1,13 @@
-# Codex Python SDK v0.152.0 接口文档（中文）
+# Codex Python SDK v0.157.0 接口文档（中文）
 
-包：`openai-codex` **0.152.0**  
-Runtime 钉死：`openai-codex-cli-bin==0.152.0`（内嵌 `codex app-server`）  
+包：`openai-codex` **0.157.0**  
+Runtime 钉死：`openai-codex-cli-bin==0.157.0`（内嵌 `codex app-server`）  
 Python：`>=3.10`  
 传输：stdio 上的 JSON-RPC v2（`codex app-server --listen stdio://`）
 
 本文描述本版本 `sdk-v1/python` **公开** Python API，不是 app-server 全量 RPC。未封装的方法仍在 `openai_codex.generated.v2_all`；只能通过未导出的 `CodexClient.request` 调用（不在 `__all__`）。
 
-英文对照：[codex-python-sdk-v0.152.0-api-en.md](codex-python-sdk-v0.152.0-api-en.md)  
+英文对照：[codex-python-sdk-v0.157.0-api-en.md](codex-python-sdk-v0.157.0-api-en.md)  
 仓库文档入口（章节目录 + 其它文档）：[`../../../README.md`](../../../README.md)  
 App-server 覆盖表：[`../../app-server-api.zh.md`](../../app-server-api.zh.md)  
 本机目录： [codex-home.md](codex-home.md)  
@@ -53,7 +53,7 @@ SDK **不**自己拼 messages。上下文、压缩、工具、沙箱都在 Codex
 ## 2. 安装与导入
 
 ```bash
-pip install openai-codex==0.152.0
+pip install openai-codex==0.157.0
 ```
 
 ```python
@@ -75,12 +75,13 @@ from openai_codex import (
     LocalAudioInput,
     SkillInput,
     MentionInput,
+    ExternalMessage,
     retry_on_overload,
 )
 from openai_codex.types import GetAccountResponse, ThreadItem, Notification
 ```
 
-版本：`openai_codex.__version__` → `"0.152.0"`。
+版本：`openai_codex.__version__` → `"0.157.0"`。
 
 协议类型（注解 / 匹配）：`openai_codex.types`（再导出 generated v2）。
 
@@ -104,7 +105,7 @@ class CodexConfig:
 
 默认启动：bundled `codex` + `--config` + `app-server --listen stdio://`。
 
-0.152.0 里 `experimental_api` **默认 True**。下文标 **实验** 的接口仅在你设成 `False` 时抛 `ExperimentalApiDisabledError`。
+0.157.0 里 `experimental_api` **默认 True**。下文标 **实验** 的接口仅在你设成 `False` 时抛 `ExperimentalApiDisabledError`。
 
 内部 `CodexClient` 可注入 `approval_handler`；公开 `Codex` 不暴露。默认 handler 对命令/补丁审批自动 `accept`。
 
@@ -169,8 +170,8 @@ with Codex() as codex:
 | -------------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
 | `thread_start(**kwargs)`                                 | 新建一条空对话                                   | 仅关键字，见 [6.2](#62-thread_start--resume--fork-共用参数)                                                                    | SDK `Thread`（`.id` = 新 thread id）                                                |
 | `thread_list(**kwargs)`                                  | 列出已保存对话                                   | 见 [6.3](#63-thread_list)                                                                                                      | `ThreadListResponse`：`data: list[types.Thread]`，`next_cursor`，`backwards_cursor` |
-| `thread_resume(thread_id, **kwargs)`                     | 把已有对话加载进当前 app-server，以便继续跑 turn | 位置：`thread_id: str`；关键字见 6.2，另有 `exclude_turns`                                                                     | SDK `Thread`                                                                        |
-| `thread_fork(thread_id, **kwargs)`                       | 从已有对话复制出**新** thread（新 id）           | 位置：`thread_id`；关键字见 6.2，另有 `before_turn_id` **实验**、`last_turn_id`、`exclude_turns`、`ephemeral`、`thread_source` | SDK `Thread`（新 id）                                                               |
+| `thread_resume(thread_id, **kwargs)`                     | 把已有对话加载进当前 app-server，以便继续跑 turn | 位置：`thread_id: str`；关键字见 6.2，另有 `include_turns`                                                                     | SDK `Thread`                                                                        |
+| `thread_fork(thread_id, **kwargs)`                       | 从已有对话复制出**新** thread（新 id）           | 位置：`thread_id`；关键字见 6.2，另有 `before_turn_id` **实验**、`last_turn_id`、`include_turns`、`ephemeral`、`thread_source` | SDK `Thread`（新 id）                                                               |
 | `thread_archive(thread_id)`                              | 归档（列表默认不再出现）                         | `thread_id: str`                                                                                                               | `ThreadArchiveResponse`（空对象）                                                   |
 | `thread_unarchive(thread_id)`                            | 取消归档                                         | `thread_id: str`                                                                                                               | SDK `Thread`                                                                        |
 | `thread_delete(thread_id)`                               | 删除存储的对话                                   | `thread_id: str`                                                                                                               | `ThreadDeleteResponse`（空对象）                                                    |
@@ -191,7 +192,7 @@ with Codex() as codex:
 | `cwd`                    | `str \| None`                         | 该对话的工作目录（绝对路径）。                                                                                     |
 | `model`                  | `str \| None`                         | 模型 slug（如 `gpt-5.4`），不是本地 Ollama 标签列表。                                                              |
 | `model_provider`         | `str \| None`                         | `config.toml` 里 `[model_providers.*]` 的名字。                                                                    |
-| `personality`            | `Personality \| None`                 | `none` / `friendly` / `pragmatic`。                                                                                |
+| `personality`            | `Personality \| None`                 | `friendly` / `pragmatic` 已弃用，不再选风格。`Personality.none` 只去掉 catalog 的 `# Personality`。                |
 | `base_instructions` | `str \| None` | 覆盖模型内置 base。一般不要用；详见 [第 11 节](#11-自定义系统提示词)。 |
 | `developer_instructions` | `str \| None` | 额外 developer 消息。自定义「系统提示」优先用这个。 |
 | `config`                 | `dict \| None`                        | 本 thread 的配置覆盖（JSON 对象）。                                                                                |
@@ -211,7 +212,7 @@ with Codex() as codex:
 
 | 参数             | 类型           | 作用                                                                                          |
 | ---------------- | -------------- | --------------------------------------------------------------------------------------------- |
-| `exclude_turns`  | `bool \| None` | `True` 时响应不灌满历史 turn；随后用 `turns_list` / `items_list` 分页。                       |
+| `include_turns`  | `bool \| None` | 是否在 resume/fork **响应**里带历史 turn（不改模型 context）。省略/`None` 用服务端默认。`True` 要历史，`False` 跳过。线上仍写 `excludeTurns`。 |
 | `before_turn_id` | `str \| None`  | **实验，仅 fork**。在该 turn **之前**切开（不含该 turn 及之后）。不能与 `last_turn_id` 同用。 |
 | `last_turn_id`   | `str \| None`  | **仅 fork**。包含该 turn，丢掉之后的 turn；该 turn 不能仍在进行中。                           |
 
@@ -276,7 +277,7 @@ SDK `Thread`：`id` 是服务端 thread id。`run` / `turn` **新开一轮 turn*
 
 ### 7.2 `run` / `turn` 参数
 
-位置参数 `input: str | Input`（`str` ≡ `TextInput`；列表则一次提交多项，见第 9 节）。其余仅关键字；本 turn 传入的 `sandbox` / `approval_mode` 会粘到**之后的 turn**。
+位置参数 `input: str | Input | ExternalMessage`（`str` ≡ `TextInput`；列表则一次提交多项，见第 9 节）。`ExternalMessage` 必须单独作为整份 input，不能混进列表。其余仅关键字；本 turn 传入的 `sandbox` / `approval_mode` 会粘到**之后的 turn**。
 
 | 参数            | 类型                                  | 作用                                                                         |
 | --------------- | ------------------------------------- | ---------------------------------------------------------------------------- |
@@ -286,17 +287,21 @@ SDK `Thread`：`id` 是服务端 thread id。`run` / `turn` **新开一轮 turn*
 | `model`         | `str \| None`                         | 覆盖模型。                                                                   |
 | `effort`        | `ReasoningEffort \| None`             | `none` / `minimal` / `low` / `medium` / `high` / `xhigh` / `max` / `ultra`。 |
 | `summary`       | `ReasoningSummary \| None`            | 推理摘要：`auto` / `concise` / `detailed` / `"none"`。                       |
-| `personality`   | `Personality \| None`                 | 覆盖性格。                                                                   |
-| `service_tier`  | `str \| None`                         | 覆盖服务档。                                                                 |
+| `personality`   | `Personality \| None`                 | 已弃用的风格选择；见 6.2。                                                   |
+| `service_tier`  | `str \| None`                         | 覆盖本 thread 及之后 turn 的服务档。                                         |
+| `turn_service_tier` | `str \| None`                     | 只覆盖**新开**的这一轮；join 已有 turn 时忽略。`"default"` = 标准速度。      |
+| `source`        | `str \| None`                         | 元数据，标谁发起这一轮（如 `"review_ui"`）；不授权。join 时忽略。            |
 | `output_schema` | `dict \| None`                        | JSON Schema，约束本轮最终助手消息。                                          |
 | `environments`  | `list[TurnEnvironmentParams] \| None` | **实验**。省略用 thread 粘性环境；`[]` 本轮关掉。                            |
-| `tool_output`   | `TurnToolOutput \| None`              | 向进行中的工具调用回灌输出：`name`、`namespace`、`output`。                  |
+| `tool_output`   | `TurnToolOutput \| None`              | 向进行中的工具调用回灌输出。`ExternalMessage` 会覆盖这个字段。               |
 
 ---
 
 ## 8. `TurnHandle`
 
 一次 **进行中的 turn**：属性 `thread_id`、`id`（turn id）。不是对话。结束后用 `TurnResult`；handle 已用完。一个 `Codex` 可同时 stream 多个 turn，按 turn id 路由。
+
+`thread.turn(...)` 返回的 handle 从**请求发出时**开始收事件。后加入的 handle 从附着点起收：会回放已完成 item 和最新 usage，不回放已消费的 token delta。手搓 / 晚加入的 handle 可能不完整；完整历史用 `thread.read(include_turns=True)`。`ExternalMessage` 可以 join 进行中的常规 turn，两个 handle 各自收流。
 
 | 方法                   | 作用                                               | 参数                                                                | 返回                                                                 |
 | ---------------------- | -------------------------------------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------- |
@@ -338,6 +343,18 @@ MentionInput(name, path)  # app://... 或 plugin://...
 ```
 
 turn 入参里的 `str` ≡ `TextInput`。item 列表作为一次 `turn/start` 的 `input` 数组。
+
+```python
+from openai_codex import ExternalMessage
+
+thread.run(ExternalMessage(
+    tool_name="notifications",
+    namespace="slack",
+    content="Staging checks failed.",
+))
+```
+
+`ExternalMessage` 是**非用户输入**：tool 级权限，低于 user / developer。不授权、不审批。必须整份传给 `run` / `turn`，不能放进 item 列表，也不能 `steer`。空闲时开新 turn，进行中则 join。历史里表现为 `functionCallOutput`。需要 CLI ≥ 0.151.0（本包钉死 0.157.0）。
 
 ---
 

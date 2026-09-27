@@ -125,7 +125,7 @@ Do not blindly retry all errors. For `InvalidParamsError` or
 
 ## Related docs
 
-- [Public API (EN)](codex-python-sdk-v0.152.0-api-en.md) · [中文](codex-python-sdk-v0.152.0-api-zh.md)
+- [Public API (EN)](codex-python-sdk-v0.157.0-api-en.md) · [中文](codex-python-sdk-v0.157.0-api-zh.md)
 - [Getting started](getting-started.md) · [`~/.codex`](codex-home.md)
 - [App-server coverage](../../app-server-api.zh.md)
 - [Repository docs hub](../../../README.md)

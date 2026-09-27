@@ -45,6 +45,7 @@ EXPECTED_ROOT_EXPORTS = [
     "Input",
     "InputItem",
     "RunInput",
+    "ExternalMessage",
     "TextInput",
     "ImageInput",
     "LocalImageInput",
@@ -149,9 +150,15 @@ def test_turn_input_methods_accept_string_shortcut() -> None:
         AsyncTurnHandle.steer,
     ]
 
-    assert {fn: inspect.signature(fn).parameters["input"].annotation for fn in funcs} == (
-        dict.fromkeys(funcs, "RunInput")
-    )
+    annotations = {fn: inspect.signature(fn).parameters["input"].annotation for fn in funcs}
+    assert annotations == {
+        Thread.run: "RunInput",
+        Thread.turn: "RunInput",
+        AsyncThread.run: "RunInput",
+        AsyncThread.turn: "RunInput",
+        TurnHandle.steer: "Input | str",
+        AsyncTurnHandle.steer: "Input | str",
+    }
 
 
 def test_root_exports_approval_mode() -> None:
@@ -321,7 +328,7 @@ def test_generated_public_signatures_are_snake_case_and_typed() -> None:
             "config",
             "cwd",
             "developer_instructions",
-            "exclude_turns",
+            "include_turns",
             "model",
             "model_provider",
             "personality",
@@ -336,7 +343,7 @@ def test_generated_public_signatures_are_snake_case_and_typed() -> None:
             "cwd",
             "developer_instructions",
             "ephemeral",
-            "exclude_turns",
+            "include_turns",
             "last_turn_id",
             "model",
             "model_provider",
@@ -354,8 +361,10 @@ def test_generated_public_signatures_are_snake_case_and_typed() -> None:
             "personality",
             "sandbox",
             "service_tier",
+            "source",
             "summary",
             "tool_output",
+            "turn_service_tier",
         ],
         Thread.run: [
             "approval_mode",
@@ -367,8 +376,10 @@ def test_generated_public_signatures_are_snake_case_and_typed() -> None:
             "personality",
             "sandbox",
             "service_tier",
+            "source",
             "summary",
             "tool_output",
+            "turn_service_tier",
         ],
         AsyncCodex.thread_start: [
             "approval_mode",
@@ -406,7 +417,7 @@ def test_generated_public_signatures_are_snake_case_and_typed() -> None:
             "config",
             "cwd",
             "developer_instructions",
-            "exclude_turns",
+            "include_turns",
             "model",
             "model_provider",
             "personality",
@@ -421,7 +432,7 @@ def test_generated_public_signatures_are_snake_case_and_typed() -> None:
             "cwd",
             "developer_instructions",
             "ephemeral",
-            "exclude_turns",
+            "include_turns",
             "last_turn_id",
             "model",
             "model_provider",
@@ -439,8 +450,10 @@ def test_generated_public_signatures_are_snake_case_and_typed() -> None:
             "personality",
             "sandbox",
             "service_tier",
+            "source",
             "summary",
             "tool_output",
+            "turn_service_tier",
         ],
         AsyncThread.run: [
             "approval_mode",
@@ -452,8 +465,10 @@ def test_generated_public_signatures_are_snake_case_and_typed() -> None:
             "personality",
             "sandbox",
             "service_tier",
+            "source",
             "summary",
             "tool_output",
+            "turn_service_tier",
         ],
     }
 

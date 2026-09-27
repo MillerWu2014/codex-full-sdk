@@ -101,7 +101,7 @@ def _self_check() -> None:
     assert pep425_tag("aarch64-apple-darwin") == "macosx_11_0_arm64"
     assert runtime_binary_name("x86_64-pc-windows-msvc") == "codex.exe"
     assert runtime_binary_name("x86_64-unknown-linux-musl") == "codex"
-    url = github_package_url("rust-v0.152.0", "aarch64-apple-darwin")
+    url = github_package_url("rust-v0.157.0", "aarch64-apple-darwin")
     assert url.endswith("codex-package-aarch64-apple-darwin.tar.gz")
 
 

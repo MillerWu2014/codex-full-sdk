@@ -259,11 +259,11 @@ def test_root_format_driver_covers_all_formatter_groups(
     )
     assert [group.commands[-1].args[-3:] for group in formatters[3:]] == [
         ("ruff", "format", "sdk/python"),
-        ("ruff", "format", "scripts"),
+        ("ruff", "format", "."),
     ]
     assert [group.commands[-1].args[-4:] for group in checks[3:]] == [
         ("ruff", "format", "--check", "sdk/python"),
-        ("ruff", "format", "--check", "scripts"),
+        ("ruff", "format", "--check", "."),
     ]
 
 
@@ -397,7 +397,7 @@ def test_generate_schema_uses_precomputed_when_runtime_binary_missing(tmp_path: 
     script.pinned_runtime_codex_path = missing_runtime_path  # type: ignore[attr-defined]
     schema_dir = script.generate_schema_from_runtime_or_precomputed(tmp_path / "schema")
     bundle = json.loads(script.schema_bundle_path(schema_dir).read_text())
-    assert len(bundle["definitions"]) == 734
+    assert len(bundle["definitions"]) == 795
 
 
 def test_generate_schema_prefers_packaged_runtime_before_precomputed(
@@ -507,6 +507,7 @@ def test_schema_normalization_only_flattens_string_literal_oneofs(
         "MessagePhase",
         "PluginAvailability",
         "ProcessOutputStream",
+        "ToolExposureSurface",
         "TurnItemsView",
         "TurnSettingsUpdateStatus",
     ]
@@ -630,7 +631,7 @@ def test_source_sdk_template_uses_path_runtime_dependency() -> None:
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
     dependencies = pyproject["project"]["dependencies"]
 
-    assert pyproject["project"]["version"] == "0.152.0"
+    assert pyproject["project"]["version"] == "0.157.0"
     assert _runtime_dependency_spec(dependencies) == "openai-codex-cli-bin"
     assert pyproject["tool"]["uv"]["sources"]["openai-codex-cli-bin"] == {
         "path": "../python-runtime"
@@ -708,7 +709,7 @@ def test_runtime_setup_reads_independent_runtime_pin_and_release_tags() -> None:
         "alpha_hotfix_release_tag": runtime_setup._release_tag("0.116.0a1.post2"),
     } == {
         "package_name": "openai-codex-cli-bin",
-        "sdk_template_version": "0.152.0",
+        "sdk_template_version": "0.157.0",
         "runtime_pin": runtime_template["project"]["version"],
         "normalized_release_version": "0.116.0a1",
         "normalized_alpha_hotfix_version": "0.116.0a1.post2",
@@ -947,7 +948,7 @@ def test_stage_runtime_accepts_windows_binaries_on_any_host(tmp_path: Path) -> N
 
     staged = script.stage_python_runtime_package(
         tmp_path / "runtime-stage",
-        "0.152.0",
+        "0.157.0",
         archive_path,
         platform_tag="win_amd64",
     )
@@ -1373,15 +1374,15 @@ def test_public_flat_methods_only_expose_baseline_allowlisted_fields(tmp_path: P
     codex_resume = _kwonly_names(Codex.thread_resume)
     async_codex_resume = _kwonly_names(AsyncCodex.thread_resume)
     assert "exclude_turns" in ThreadResumeParams.model_fields
-    assert "exclude_turns" in codex_resume
-    assert "exclude_turns" in async_codex_resume
+    assert "include_turns" in codex_resume
+    assert "include_turns" in async_codex_resume
     assert not (forbidden & codex_resume)
     assert not (forbidden & async_codex_resume)
 
     codex_fork = _kwonly_names(Codex.thread_fork)
     async_codex_fork = _kwonly_names(AsyncCodex.thread_fork)
     assert {"before_turn_id", "exclude_turns"} <= set(ThreadForkParams.model_fields)
-    for expected in {"last_turn_id", "before_turn_id", "exclude_turns"}:
+    for expected in {"last_turn_id", "before_turn_id", "include_turns"}:
         assert expected in codex_fork
         assert expected in async_codex_fork
     assert not (forbidden & codex_fork)
@@ -1389,7 +1390,7 @@ def test_public_flat_methods_only_expose_baseline_allowlisted_fields(tmp_path: P
 
     thread_turn = _kwonly_names(Thread.turn)
     async_thread_turn = _kwonly_names(AsyncThread.turn)
-    for expected in {"environments", "tool_output"}:
+    for expected in {"environments", "tool_output", "source", "turn_service_tier"}:
         assert expected in thread_turn
         assert expected in async_thread_turn
     assert not (forbidden & thread_turn)

@@ -161,7 +161,7 @@ source .venv/bin/activate
 
 ## Next Stops
 
-- [Public API v0.152.0 (English)](codex-python-sdk-v0.152.0-api-en.md) · [中文](codex-python-sdk-v0.152.0-api-zh.md)
+- [Public API v0.157.0 (English)](codex-python-sdk-v0.157.0-api-en.md) · [中文](codex-python-sdk-v0.157.0-api-zh.md)
 - [FAQ](faq.md)
 - [`~/.codex` layout](codex-home.md)
 - [Runnable examples](../examples/README.md)

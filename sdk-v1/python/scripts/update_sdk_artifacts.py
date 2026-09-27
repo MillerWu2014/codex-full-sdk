@@ -1034,6 +1034,12 @@ FIELD_ANNOTATION_OVERRIDES: dict[str, str] = {
     "output_schema": "JsonObject",
 }
 
+PUBLIC_FIELD_NAMES = {
+    "exclude_turns": "include_turns",
+    "service_tier_for_turn": "turn_service_tier",
+    "turn_trigger": "source",
+}
+
 THREAD_START_PUBLIC_FIELD_ALLOWLIST = {
     "base_instructions",
     "config",
@@ -1086,8 +1092,10 @@ TURN_START_PUBLIC_FIELD_ALLOWLIST = {
     "personality",
     "sandbox_policy",
     "service_tier",
+    "service_tier_for_turn",
     "summary",
     "tool_output",
+    "turn_trigger",
 }
 THREAD_LIST_PUBLIC_FIELD_ALLOWLIST = {
     "archived",
@@ -1178,7 +1186,7 @@ def _load_public_fields(
         fields.append(
             PublicFieldSpec(
                 wire_name=name,
-                py_name=name,
+                py_name=PUBLIC_FIELD_NAMES.get(name, name),
                 annotation=annotation,
                 required=required,
             )
@@ -1260,6 +1268,10 @@ def _model_arg_lines(fields: list[PublicFieldSpec], *, indent: str = "          
             arg = "_sandbox_mode(sandbox)"
         elif field.wire_name == "sandbox_policy":
             arg = "_sandbox_policy(sandbox)"
+        elif field.wire_name == "exclude_turns":
+            arg = "None if include_turns is None else not include_turns"
+        elif field.wire_name == "tool_output":
+            arg = "message_tool_output if message_tool_output is not None else tool_output"
         lines.append(f"{indent}{field.wire_name}={arg},")
     return lines
 
@@ -1302,7 +1314,10 @@ def _allowlisted_public_fields(
     missing = sorted(required - names)
     if missing:
         raise RuntimeError(f"{class_name} missing required public fields: {', '.join(missing)}")
-    return [field for field in fields if field.wire_name in allowlist]
+    return sorted(
+        [field for field in fields if field.wire_name in allowlist],
+        key=lambda field: field.py_name,
+    )
 
 
 def _replace_generated_block(source: str, block_name: str, body: str) -> str:
@@ -1357,7 +1372,11 @@ def _render_codex_block(
         *_approval_mode_override_signature_lines(),
         *_kw_signature_lines(resume_fields),
         "    ) -> Thread:",
-        '        """Resume an existing conversation thread by ID."""',
+        '        """Resume an existing conversation thread by ID.',
+        "",
+        "        include_turns controls the runtime response history, not model context.",
+        "        Omit it to preserve the runtime default. Use thread.read() for history.",
+        '        """',
         _approval_mode_assignment_line("_approval_mode_override_settings"),
         "        params = ThreadResumeParams(",
         "            thread_id=thread_id,",
@@ -1374,7 +1393,11 @@ def _render_codex_block(
         *_approval_mode_override_signature_lines(),
         *_kw_signature_lines(fork_fields),
         "    ) -> Thread:",
-        '        """Create a new thread from an existing thread."""',
+        '        """Create a new thread from an existing thread.',
+        "",
+        "        include_turns controls the runtime response history, not model context.",
+        "        Omit it to preserve the runtime default. Use thread.read() for history.",
+        '        """',
         *_experimental_field_guard_lines(fork_fields, "self._client.config"),
         _approval_mode_assignment_line("_approval_mode_override_settings"),
         "        params = ThreadForkParams(",
@@ -1440,7 +1463,11 @@ def _render_async_codex_block(
         *_approval_mode_override_signature_lines(),
         *_kw_signature_lines(resume_fields),
         "    ) -> AsyncThread:",
-        '        """Resume an existing conversation thread by ID."""',
+        '        """Resume an existing conversation thread by ID.',
+        "",
+        "        include_turns controls the runtime response history, not model context.",
+        "        Omit it to preserve the runtime default. Use thread.read() for history.",
+        '        """',
         "        await self._ensure_initialized()",
         _approval_mode_assignment_line("_approval_mode_override_settings"),
         "        params = ThreadResumeParams(",
@@ -1458,7 +1485,11 @@ def _render_async_codex_block(
         *_approval_mode_override_signature_lines(),
         *_kw_signature_lines(fork_fields),
         "    ) -> AsyncThread:",
-        '        """Create a new thread from an existing thread."""',
+        '        """Create a new thread from an existing thread.',
+        "",
+        "        include_turns controls the runtime response history, not model context.",
+        "        Omit it to preserve the runtime default. Use thread.read() for history.",
+        '        """',
         *_experimental_field_guard_lines(fork_fields, "self._client.config"),
         "        await self._ensure_initialized()",
         _approval_mode_assignment_line("_approval_mode_override_settings"),
@@ -1495,9 +1526,16 @@ def _render_thread_block(
         *_approval_mode_override_signature_lines(),
         *_kw_signature_lines(turn_fields),
         "    ) -> TurnHandle:",
-        '        """Start a turn and return a handle for streaming or control."""',
+        '        """Start a turn or join an active regular turn and return its handle.',
+        "",
+        "        ExternalMessage supplies untrusted content with tool-level authority;",
+        "        it does not establish user authorization or approval.",
+        "        turn_service_tier applies only to this new turn; service_tier updates",
+        "        the thread default. source labels what initiated a new turn and grants",
+        "        no authority. Both turn_service_tier and source are ignored when joining.",
+        '        """',
         *_experimental_field_guard_lines(turn_fields, "self._client.config"),
-        "        wire_input = _to_wire_input(_normalize_run_input(input))",
+        "        wire_input, message_tool_output = _to_wire_turn_input(input)",
         _approval_mode_assignment_line("_approval_mode_override_settings"),
         "        params = TurnStartParams(",
         "            thread_id=self.id,",
@@ -1505,8 +1543,10 @@ def _render_thread_block(
         *_approval_mode_model_arg_lines(),
         *_model_arg_lines(turn_fields),
         "        )",
-        "        turn = self._client.turn_start(self.id, wire_input, params=params)",
-        "        return TurnHandle(self._client, self.id, turn.turn.id)",
+        "        turn, subscription = self._client._start_turn(",
+        "            self.id, wire_input, params=params, for_handle=True",
+        "        )",
+        "        return TurnHandle(self._client, self.id, turn.turn.id, _subscription=subscription)",
     ]
     return "\n".join(lines)
 
@@ -1522,10 +1562,17 @@ def _render_async_thread_block(
         *_approval_mode_override_signature_lines(),
         *_kw_signature_lines(turn_fields),
         "    ) -> AsyncTurnHandle:",
-        '        """Start a turn and return a handle for streaming or control."""',
+        '        """Start a turn or join an active regular turn and return its handle.',
+        "",
+        "        ExternalMessage supplies untrusted content with tool-level authority;",
+        "        it does not establish user authorization or approval.",
+        "        turn_service_tier applies only to this new turn; service_tier updates",
+        "        the thread default. source labels what initiated a new turn and grants",
+        "        no authority. Both turn_service_tier and source are ignored when joining.",
+        '        """',
         *_experimental_field_guard_lines(turn_fields, "self._codex._client.config"),
         "        await self._codex._ensure_initialized()",
-        "        wire_input = _to_wire_input(_normalize_run_input(input))",
+        "        wire_input, message_tool_output = _to_wire_turn_input(input)",
         _approval_mode_assignment_line("_approval_mode_override_settings"),
         "        params = TurnStartParams(",
         "            thread_id=self.id,",
@@ -1533,12 +1580,13 @@ def _render_async_thread_block(
         *_approval_mode_model_arg_lines(),
         *_model_arg_lines(turn_fields),
         "        )",
-        "        turn = await self._codex._client.turn_start(",
+        "        turn, subscription = await self._codex._client._start_turn(",
         "            self.id,",
         "            wire_input,",
         "            params=params,",
+        "            for_handle=True,",
         "        )",
-        "        return AsyncTurnHandle(self._codex, self.id, turn.turn.id)",
+        "        return AsyncTurnHandle(self._codex, self.id, turn.turn.id, _subscription=subscription)",
     ]
     return "\n".join(lines)
 

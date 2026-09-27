@@ -390,8 +390,8 @@ def test_client_reader_routes_interleaved_turn_notifications_by_turn_id() -> Non
     )
 
 
-def test_turn_notification_router_buffers_events_before_registration() -> None:
-    """Early turn events should be replayed once their TurnHandle registers."""
+def test_turn_notification_router_late_register_starts_at_next_event() -> None:
+    """A late low-level register starts at the next event, not replayed history."""
     client = CodexClient()
     client._router.route_notification(
         client._coerce_notification(
@@ -404,19 +404,24 @@ def test_turn_notification_router_buffers_events_before_registration() -> None:
             },
         )
     )
-
     client.register_turn_notifications("turn-1")
-    event = client.next_turn_notification("turn-1")
-
-    assert isinstance(event.payload, AgentMessageDeltaNotification)
-    assert (event.method, event.payload.delta) == (
+    live = client._coerce_notification(
         "item/agentMessage/delta",
-        "early",
+        {
+            "delta": "live",
+            "itemId": "item-2",
+            "threadId": "thread-1",
+            "turnId": "turn-1",
+        },
     )
+    client._router.route_notification(live)
+    event = client.next_turn_notification("turn-1")
+    assert isinstance(event.payload, AgentMessageDeltaNotification)
+    assert (event.method, event.payload.delta) == ("item/agentMessage/delta", "live")
 
 
 def test_turn_notification_router_clears_unregistered_turn_when_completed() -> None:
-    """A completed unregistered turn should not leave a pending queue behind."""
+    """A completed unregistered turn should not leave buffered turn state behind."""
     client = CodexClient()
     client._router.route_notification(
         client._coerce_notification(
@@ -439,7 +444,8 @@ def test_turn_notification_router_clears_unregistered_turn_when_completed() -> N
         )
     )
 
-    assert client._router._pending_turn_notifications == {}
+    assert client._router._turn_states == {}
+    assert client._router._pending_turn_requests == {}
 
 
 def test_turn_notification_router_routes_unknown_turn_notifications() -> None:

@@ -9,7 +9,7 @@ Resolution (`codex-rs/utils/home-dir`):
 
 The Python SDK does not invent a second store. `Codex()` starts the bundled `codex app-server`, which reads and writes this tree. Isolate tests or extra installs with `CODEX_HOME` (and optionally `CODEX_SQLITE_HOME`).
 
-Related: [public API EN](codex-python-sdk-v0.152.0-api-en.md) · [中文](codex-python-sdk-v0.152.0-api-zh.md) · [FAQ](faq.md) · [docs hub](../../../README.md)
+Related: [public API EN](codex-python-sdk-v0.157.0-api-en.md) · [中文](codex-python-sdk-v0.157.0-api-zh.md) · [FAQ](faq.md) · [docs hub](../../../README.md)
 
 SQLite files default to the same directory (`config.sqlite_home`, overridable with `CODEX_SQLITE_HOME` or `sqlite_home` in config). They are **not** the live model prompt. Live context is the in-memory thread plus the JSONL **rollout** under `sessions/`; SQLite is an index, search, goals, memories, queues, and logs.
 

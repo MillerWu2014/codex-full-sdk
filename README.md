@@ -16,12 +16,12 @@
 
 ## 文档
 
-当前公开 Python API 以 **0.152.0** 为准（runtime：`openai-codex-cli-bin==0.152.0`）。完整接口说明是下面两份同结构文档。
+当前公开 Python API 以 **0.157.0** 为准（runtime：`openai-codex-cli-bin==0.157.0`）。完整接口说明是下面两份同结构文档。
 
 | 文档                                                                                          | 语言    | 内容                                                                                         |
 | --------------------------------------------------------------------------------------------- | ------- | -------------------------------------------------------------------------------------------- |
-| [codex-python-sdk-v0.152.0-api-zh.md](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-zh.md) | 中文    | **公开 SDK 接口**（参数 / 返回 / 作用）：Thread vs Turn、系统提示、Skill/MCP 管理、配置、FS… |
-| [codex-python-sdk-v0.152.0-api-en.md](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-en.md) | English | Same public API, English twin                                                                |
+| [codex-python-sdk-v0.157.0-api-zh.md](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-zh.md) | 中文    | **公开 SDK 接口**（参数 / 返回 / 作用）：Thread vs Turn、系统提示、Skill/MCP 管理、配置、FS… |
+| [codex-python-sdk-v0.157.0-api-en.md](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-en.md) | English | Same public API, English twin                                                                |
 | [getting-started.md](sdk-v1/python/docs/getting-started.md)                                   | EN      | 安装、登录、跑一轮 turn                                                                      |
 | [faq.md](sdk-v1/python/docs/faq.md)                                                           | EN      | Thread vs turn、sandbox、hang、`CODEX_HOME`                                                  |
 | [codex-home.md](sdk-v1/python/docs/codex-home.md)                                             | EN      | `~/.codex` 落盘：rollout、SQLite、`AGENTS.md`、`skills/`                                     |
@@ -38,7 +38,7 @@
 ```text
 README（本文）
   ├─ 上手     → getting-started → python/README → examples
-  ├─ 公开 API → v0.152.0 中文 / English（下面目录可直达章节）
+  ├─ 公开 API → v0.157.0 中文 / English（下面目录可直达章节）
   │              ├─ 系统提示、Skill/MCP 管理（无 create RPC，写文件 / config.toml）
   │              └─ faq、codex-home（磁盘与多轮）
   ├─ 覆盖缺口 → app-server-api.zh.md（上游有、SDK 没有的方法）
@@ -51,25 +51,25 @@ README（本文）
 
 | #   | 中文                                                                                                             | English                                                                                                                                   |
 | --- | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | [Thread 与 Turn](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-zh.md#1-thread-与-turn)                        | [Thread vs turn](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-en.md#1-thread-vs-turn)                                                 |
-| 2   | [安装与导入](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-zh.md#2-安装与导入)                                | [Install and import](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-en.md#2-install-and-import)                                         |
-| 3   | [`CodexConfig`](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-zh.md#3-codexconfig)                            | [`CodexConfig`](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-en.md#3-codexconfig)                                                     |
-| 4   | [生命周期](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-zh.md#4-生命周期)                                    | [Lifecycle](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-en.md#4-lifecycle)                                                           |
-| 5   | [账户 / 登录](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-zh.md#5-账户--登录)                               | [Account / login](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-en.md#5-account--login)                                                |
-| 6   | [`Codex` — Thread](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-zh.md#6-codex--thread)                       | [`Codex` — threads](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-en.md#6-codex--threads)                                              |
-| 7   | [`Thread`](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-zh.md#7-thread)                                      | [`Thread`](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-en.md#7-thread)                                                               |
-| 8   | [`TurnHandle`](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-zh.md#8-turnhandle)                              | [`TurnHandle`](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-en.md#8-turnhandle)                                                       |
-| 9   | [输入](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-zh.md#9-输入)                                            | [Inputs](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-en.md#9-inputs)                                                                 |
-| 10  | [ApprovalMode 与 Sandbox](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-zh.md#10-approvalmode-与-sandbox)     | [ApprovalMode and Sandbox](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-en.md#10-approvalmode-and-sandbox)                            |
-| 11  | [自定义系统提示词](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-zh.md#11-自定义系统提示词)                   | [Custom system / developer instructions](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-en.md#11-custom-system--developer-instructions) |
-| 12  | [管理 Skill 与 MCP](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-zh.md#12-管理-skill-与-mcp)                 | [Managing skills and MCP](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-en.md#12-managing-skills-and-mcp)                              |
-| 13  | [模型、配置、Skill、MCP、FS](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-zh.md#13-模型配置skillmcp文件系统) | [Models, config, skills, MCP, FS](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-en.md#13-models-config-skills-mcp-fs)                  |
-| 14  | [`codex.experimental`](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-zh.md#14-codexexperimental)              | [`codex.experimental`](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-en.md#14-codexexperimental)                                       |
-| 15  | [通知](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-zh.md#15-通知)                                           | [Notifications](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-en.md#15-notifications)                                                  |
-| 16  | [错误与重试](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-zh.md#16-错误与重试)                               | [Errors and retry](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-en.md#16-errors-and-retry)                                            |
-| 17  | [公开 SDK 没有的](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-zh.md#17-公开-sdk-没有app-server-仍有的)      | [Not in the public SDK](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-en.md#17-not-in-the-public-sdk-still-in-app-server)              |
-| 18  | [最小示例](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-zh.md#18-最小示例)                                   | [Minimal examples](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-en.md#18-minimal-examples)                                            |
-| 19  | [返回类型](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-zh.md#19-返回类型)                                   | [Return types](sdk-v1/python/docs/codex-python-sdk-v0.152.0-api-en.md#19-return-types)                                                    |
+| 1   | [Thread 与 Turn](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-zh.md#1-thread-与-turn)                        | [Thread vs turn](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-en.md#1-thread-vs-turn)                                                 |
+| 2   | [安装与导入](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-zh.md#2-安装与导入)                                | [Install and import](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-en.md#2-install-and-import)                                         |
+| 3   | [`CodexConfig`](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-zh.md#3-codexconfig)                            | [`CodexConfig`](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-en.md#3-codexconfig)                                                     |
+| 4   | [生命周期](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-zh.md#4-生命周期)                                    | [Lifecycle](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-en.md#4-lifecycle)                                                           |
+| 5   | [账户 / 登录](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-zh.md#5-账户--登录)                               | [Account / login](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-en.md#5-account--login)                                                |
+| 6   | [`Codex` — Thread](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-zh.md#6-codex--thread)                       | [`Codex` — threads](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-en.md#6-codex--threads)                                              |
+| 7   | [`Thread`](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-zh.md#7-thread)                                      | [`Thread`](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-en.md#7-thread)                                                               |
+| 8   | [`TurnHandle`](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-zh.md#8-turnhandle)                              | [`TurnHandle`](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-en.md#8-turnhandle)                                                       |
+| 9   | [输入](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-zh.md#9-输入)                                            | [Inputs](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-en.md#9-inputs)                                                                 |
+| 10  | [ApprovalMode 与 Sandbox](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-zh.md#10-approvalmode-与-sandbox)     | [ApprovalMode and Sandbox](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-en.md#10-approvalmode-and-sandbox)                            |
+| 11  | [自定义系统提示词](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-zh.md#11-自定义系统提示词)                   | [Custom system / developer instructions](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-en.md#11-custom-system--developer-instructions) |
+| 12  | [管理 Skill 与 MCP](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-zh.md#12-管理-skill-与-mcp)                 | [Managing skills and MCP](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-en.md#12-managing-skills-and-mcp)                              |
+| 13  | [模型、配置、Skill、MCP、FS](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-zh.md#13-模型配置skillmcp文件系统) | [Models, config, skills, MCP, FS](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-en.md#13-models-config-skills-mcp-fs)                  |
+| 14  | [`codex.experimental`](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-zh.md#14-codexexperimental)              | [`codex.experimental`](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-en.md#14-codexexperimental)                                       |
+| 15  | [通知](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-zh.md#15-通知)                                           | [Notifications](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-en.md#15-notifications)                                                  |
+| 16  | [错误与重试](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-zh.md#16-错误与重试)                               | [Errors and retry](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-en.md#16-errors-and-retry)                                            |
+| 17  | [公开 SDK 没有的](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-zh.md#17-公开-sdk-没有app-server-仍有的)      | [Not in the public SDK](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-en.md#17-not-in-the-public-sdk-still-in-app-server)              |
+| 18  | [最小示例](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-zh.md#18-最小示例)                                   | [Minimal examples](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-en.md#18-minimal-examples)                                            |
+| 19  | [返回类型](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-zh.md#19-返回类型)                                   | [Return types](sdk-v1/python/docs/codex-python-sdk-v0.157.0-api-en.md#19-return-types)                                                    |
 
 ## 开发
 
@@ -122,7 +122,7 @@ python3 scripts/build_all.py --from-github-release --all-platforms
 本机有对应二进制时会再打 SDK wheel；只打 runtime 用 `--skip-sdk`。
 
 ```bash
-python3 scripts/build_all.py --version 0.152.0
+python3 scripts/build_all.py --version 0.157.0
 python3 scripts/build_all.py --skip-cli          # 复用已有 dist/codex-package-<target>.tar.gz
 python3 scripts/build_all.py --cargo-profile dev-small
 python3 scripts/build_all.py --cargo "$HOME/.cargo/bin/cargo" --uv "$HOME/.local/bin/uv"
@@ -147,7 +147,7 @@ python3 scripts/build_all.py --from-github-release --all-platforms --sdk-from-pr
 
 `--sdk-from-precomputed` 用子模块里的预计算 schema 打 `py3-none-any` 的 SDK wheel。Ubuntu 上往往跑不了 musl 的 `codex`，所以 CI 不依赖本机执行官方二进制。
 
-产物进 Actions artifact。只有推 `v0.152.0` 这类 tag 才会挂到 GitHub Release（普通 push 不会建 Release）。默认不上 pypi.org：`openai-codex` / `openai-codex-cli-bin` 是 OpenAI 的包名。
+产物进 Actions artifact。只有推 `v0.157.0` 这类 tag 才会挂到 GitHub Release（普通 push 不会建 Release）。默认不上 pypi.org：`openai-codex` / `openai-codex-cli-bin` 是 OpenAI 的包名。
 
 ## 本地模型
 

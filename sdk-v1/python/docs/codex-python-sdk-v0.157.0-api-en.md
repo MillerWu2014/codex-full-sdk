@@ -1,13 +1,13 @@
-# Codex Python SDK v0.152.0 API (English)
+# Codex Python SDK v0.157.0 API (English)
 
-Package: `openai-codex` **0.152.0**  
-Runtime pin: `openai-codex-cli-bin==0.152.0` (bundled `codex app-server`)  
+Package: `openai-codex` **0.157.0**  
+Runtime pin: `openai-codex-cli-bin==0.157.0` (bundled `codex app-server`)  
 Python: `>=3.10`  
 Wire protocol: JSON-RPC v2 over stdio (`codex app-server --listen stdio://`)
 
 This document is the **public** Python API as implemented in `sdk-v1/python` at this version. It is not the full app-server RPC catalog. Unwrapped RPCs still exist in `openai_codex.generated.v2_all` and can be called only via the unexported `CodexClient.request` (not part of `__all__`).
 
-Chinese twin: [codex-python-sdk-v0.152.0-api-zh.md](codex-python-sdk-v0.152.0-api-zh.md)  
+Chinese twin: [codex-python-sdk-v0.157.0-api-zh.md](codex-python-sdk-v0.157.0-api-zh.md)  
 Docs hub (section index + related docs): [`../../../README.md`](../../../README.md)  
 App-server coverage matrix: [`../../app-server-api.zh.md`](../../app-server-api.zh.md)  
 Local disk layout: [codex-home.md](codex-home.md)  
@@ -53,7 +53,7 @@ The SDK does **not** assemble chat messages. Context, compaction, tools, and san
 ## 2. Install and import
 
 ```bash
-pip install openai-codex==0.152.0
+pip install openai-codex==0.157.0
 ```
 
 ```python
@@ -75,12 +75,13 @@ from openai_codex import (
     LocalAudioInput,
     SkillInput,
     MentionInput,
+    ExternalMessage,
     retry_on_overload,
 )
 from openai_codex.types import GetAccountResponse, ThreadItem, Notification
 ```
 
-Version: `openai_codex.__version__` → `"0.152.0"`.
+Version: `openai_codex.__version__` → `"0.157.0"`.
 
 Protocol Pydantic models for annotations: `openai_codex.types` (re-exports generated v2 types).
 
@@ -104,7 +105,7 @@ class CodexConfig:
 
 Default launch: bundled `codex` + `--config` overrides + `app-server --listen stdio://`.
 
-`experimental_api=True` is the **default** in 0.152.0. Methods annotated **exp** below raise `ExperimentalApiDisabledError` only if you set `experimental_api=False`.
+`experimental_api=True` is the **default** in 0.157.0. Methods annotated **exp** below raise `ExperimentalApiDisabledError` only if you set `experimental_api=False`.
 
 `CodexClient` (internal) accepts `approval_handler`; public `Codex` does not. Default handler auto-`accept`s command/file approvals.
 
@@ -172,8 +173,8 @@ Omitted keyword args are `None` = leave it to the server / existing thread setti
 | --- | --- | --- | --- |
 | `thread_start(**kwargs)` | Create an empty conversation | Keywords only; see [6.2](#62-shared-start--resume--fork-parameters) | SDK `Thread` (`.id` = new thread id) |
 | `thread_list(**kwargs)` | List stored conversations | See [6.3](#63-thread_list) | `ThreadListResponse`: `data: list[types.Thread]`, `next_cursor`, `backwards_cursor` |
-| `thread_resume(thread_id, **kwargs)` | Load an existing conversation into this app-server so you can run turns | Positional `thread_id: str`; keywords in 6.2 plus `exclude_turns` | SDK `Thread` |
-| `thread_fork(thread_id, **kwargs)` | Copy into a **new** thread (new id) | Positional `thread_id`; keywords in 6.2 plus `before_turn_id` **exp**, `last_turn_id`, `exclude_turns`, `ephemeral`, `thread_source` | SDK `Thread` (new id) |
+| `thread_resume(thread_id, **kwargs)` | Load an existing conversation into this app-server so you can run turns | Positional `thread_id: str`; keywords in 6.2 plus `include_turns` | SDK `Thread` |
+| `thread_fork(thread_id, **kwargs)` | Copy into a **new** thread (new id) | Positional `thread_id`; keywords in 6.2 plus `before_turn_id` **exp**, `last_turn_id`, `include_turns`, `ephemeral`, `thread_source` | SDK `Thread` (new id) |
 | `thread_archive(thread_id)` | Archive (hidden from the default list) | `thread_id: str` | `ThreadArchiveResponse` (empty object) |
 | `thread_unarchive(thread_id)` | Unarchive | `thread_id: str` | SDK `Thread` |
 | `thread_delete(thread_id)` | Delete stored conversation | `thread_id: str` | `ThreadDeleteResponse` (empty object) |
@@ -194,7 +195,7 @@ Unless noted, `None` means do not override.
 | `cwd` | `str \| None` | Working directory (absolute). |
 | `model` | `str \| None` | Model slug (e.g. `gpt-5.4`), not a local Ollama tag list. |
 | `model_provider` | `str \| None` | Name of `[model_providers.*]` in `config.toml`. |
-| `personality` | `Personality \| None` | `none` / `friendly` / `pragmatic`. |
+| `personality` | `Personality \| None` | `friendly` / `pragmatic` are deprecated and no longer pick a style. `Personality.none` only strips the catalog `# Personality` section. |
 | `base_instructions` | `str \| None` | Override the built-in base. Usually skip; see [section 11](#11-custom-system--developer-instructions). |
 | `developer_instructions` | `str \| None` | Extra developer-role message. Prefer this for a custom “system prompt”. |
 | `config` | `dict \| None` | Per-thread config overlay (JSON object). |
@@ -214,7 +215,7 @@ Unless noted, `None` means do not override.
 
 | Parameter | Type | Meaning |
 | --- | --- | --- |
-| `exclude_turns` | `bool \| None` | `True` skips hydrating history; follow with `turns_list` / `items_list`. |
+| `include_turns` | `bool \| None` | Whether the resume/fork **response** hydrates history (not model context). Omit/`None` keeps the server default. `True` requests history; `False` skips it. Wire field remains `excludeTurns`. |
 | `before_turn_id` | `str \| None` | **exp, fork only.** Cut **before** this turn (excludes it and later). Cannot combine with `last_turn_id`. |
 | `last_turn_id` | `str \| None` | **fork only.** Include this turn; drop later ones. That turn must not be in progress. |
 
@@ -279,7 +280,7 @@ Protocol `Turn` (`turns_list` / some notifications): `id`, `status` (`completed`
 
 ### 7.2 `run` / `turn` parameters
 
-Positional `input: str | Input` (`str` ≡ `TextInput`; a list is one `turn/start` with several items — section 9). Remaining args are keywords. `sandbox` / `approval_mode` passed here stick to **later turns**.
+Positional `input: str | Input | ExternalMessage` (`str` ≡ `TextInput`; a list is one `turn/start` with several items — section 9). `ExternalMessage` must be the whole input, not mixed into a list. Remaining args are keywords. `sandbox` / `approval_mode` passed here stick to **later turns**.
 
 | Parameter | Type | Meaning |
 | --- | --- | --- |
@@ -289,17 +290,21 @@ Positional `input: str | Input` (`str` ≡ `TextInput`; a list is one `turn/star
 | `model` | `str \| None` | Override model. |
 | `effort` | `ReasoningEffort \| None` | `none` / `minimal` / `low` / `medium` / `high` / `xhigh` / `max` / `ultra`. |
 | `summary` | `ReasoningSummary \| None` | Reasoning summary: `auto` / `concise` / `detailed` / `"none"`. |
-| `personality` | `Personality \| None` | Override personality. |
-| `service_tier` | `str \| None` | Override service tier. |
+| `personality` | `Personality \| None` | Deprecated style picker; see 6.2. |
+| `service_tier` | `str \| None` | Override this thread’s default tier for this and later turns. |
+| `turn_service_tier` | `str \| None` | Override **this newly started** turn only; ignored when joining. `"default"` = standard speed. |
+| `source` | `str \| None` | Metadata for who started the turn (e.g. `"review_ui"`); grants no authority. Ignored when joining. |
 | `output_schema` | `dict \| None` | JSON Schema for this turn’s final assistant message. |
 | `environments` | `list[TurnEnvironmentParams] \| None` | **exp**. Omit = thread sticky envs; `[]` disables this turn. |
-| `tool_output` | `TurnToolOutput \| None` | Feed output into an in-flight tool call: `name`, `namespace`, `output`. |
+| `tool_output` | `TurnToolOutput \| None` | Feed output into an in-flight tool call. An `ExternalMessage` overrides this field. |
 
 ---
 
 ## 8. `TurnHandle`
 
 One **in-flight turn**: attributes `thread_id`, `id` (turn id). Not a conversation. After completion keep `TurnResult`; the handle is spent. One `Codex` can stream several turns; routing is by turn id.
+
+A handle from `thread.turn(...)` receives events from when that request is sent. A later-joining handle starts at its attachment point: completed items and latest usage are replayed; consumed token deltas are not. Manually constructed or late handles can be partial; use `thread.read(include_turns=True)` for saved history. `ExternalMessage` can join an active regular turn; both handles stream independently.
 
 | Method | What it does | Parameters | Returns |
 | --- | --- | --- | --- |
@@ -341,6 +346,18 @@ MentionInput(name, path)  # app://... or plugin://...
 ```
 
 `str` anywhere a turn accepts input ≡ `TextInput`. Lists of items are sent as one `turn/start` `input` array.
+
+```python
+from openai_codex import ExternalMessage
+
+thread.run(ExternalMessage(
+    tool_name="notifications",
+    namespace="slack",
+    content="Staging checks failed.",
+))
+```
+
+`ExternalMessage` is **untrusted** content at tool-level authority, below user and developer instructions. It does not authorize or approve. Pass it as the whole `run` / `turn` input; do not mix it into an item list or `steer`. It starts a turn when idle or joins an active regular turn, and appears in history as `functionCallOutput`. Requires CLI ≥ 0.151.0 (this package pins 0.157.0).
 
 ---
 
